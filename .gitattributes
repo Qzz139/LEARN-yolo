@@ -1,0 +1,12 @@
+datasets/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+datasets/**/*.jpeg filter=lfs diff=lfs merge=lfs -text
+datasets/**/*.png filter=lfs diff=lfs merge=lfs -text
+datasets/**/*.bmp filter=lfs diff=lfs merge=lfs -text
+datasets/**/*.webp filter=lfs diff=lfs merge=lfs -text
+datasets/**/*.mp4 filter=lfs diff=lfs merge=lfs -text
+datasets/**/*.mov filter=lfs diff=lfs merge=lfs -text
+datasets/**/*.avi filter=lfs diff=lfs merge=lfs -text
+datasets/**/*.mkv filter=lfs diff=lfs merge=lfs -text
+models/**/*.pt filter=lfs diff=lfs merge=lfs -text
+models/**/*.onnx filter=lfs diff=lfs merge=lfs -text
+models/**/*.engine filter=lfs diff=lfs merge=lfs -text

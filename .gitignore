@@ -14,13 +14,13 @@ venv/
 .mypy_cache/
 .ruff_cache/
 
-# YOLO datasets, outputs, and model artifacts
-datasets/
+# Generated training output
 runs/
-weights/
-*.pt
-*.onnx
-*.engine
+
+# Python environments and downloaded root-level weights remain local
+/*.pt
+/*.onnx
+/*.engine
 
 # Editors and operating systems
 .vscode/
