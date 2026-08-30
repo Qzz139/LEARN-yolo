@@ -1,0 +1,29 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Test and tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# YOLO datasets, outputs, and model artifacts
+datasets/
+runs/
+weights/
+*.pt
+*.onnx
+*.engine
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
