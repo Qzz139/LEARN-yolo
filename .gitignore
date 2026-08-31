@@ -17,6 +17,11 @@ venv/
 # Generated training output
 runs/
 
+# Generated ROS 2 workspace output
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+
 # Python environments and downloaded root-level weights remain local
 /*.pt
 /*.onnx
