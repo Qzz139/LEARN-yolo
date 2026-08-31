@@ -1,7 +1,0 @@
-train: images/train
-val: images/val
-test: images/test
-
-names:
-  0: mouse
-  1: keyboard
