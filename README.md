@@ -35,3 +35,7 @@ SSH远程控制
 ROS 2 Python 包位于 [`ros2_ws/src/yolo_detector`](ros2_ws/src/yolo_detector)。它支持订阅 ROS 图像话题或直接读取摄像头，并输出标准检测消息、标注图像和实时 FPS。
 
 Jetson、ROS 2 发行版、摄像头来源和最终模型路径暂不写死，部署时通过参数配置。详细说明见 [`ros2_ws/src/yolo_detector/README.md`](ros2_ws/src/yolo_detector/README.md)。
+
+
+#以下为课业提交要求
+<img width="430" height="462" alt="image" src="https://github.com/user-attachments/assets/4b3c4d1c-1d89-4596-a287-e0139dbf3c88" />
