@@ -16,6 +16,10 @@ venv/
 
 # Generated training output
 runs/
+outputs/
+
+# Recoverable local dataset backups
+datasets/archive/
 
 # Generated ROS 2 workspace output
 ros2_ws/build/

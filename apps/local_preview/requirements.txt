@@ -1,0 +1,4 @@
+# Minimal dependencies for main.py.
+# Do not use ../../requirements-lock.txt on macOS: it records a CUDA machine.
+numpy>=1.23
+opencv-python>=4.8
