@@ -10,6 +10,8 @@ yolo_detector:
     camera_backend: "auto"  # "auto" or "gstreamer"
     camera_fps: 30.0
     camera_frame_id: "camera_optical_frame"
+    camera_reconnect_interval: 2.0
+    camera_read_failure_threshold: 3
     image_source: ""
     image_fps: 10.0
 

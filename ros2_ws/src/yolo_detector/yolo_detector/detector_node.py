@@ -110,6 +110,8 @@ class YoloDetectorNode(Node):
         self.declare_parameter("camera_backend", "auto")
         self.declare_parameter("camera_fps", 30.0)
         self.declare_parameter("camera_frame_id", "camera_optical_frame")
+        self.declare_parameter("camera_reconnect_interval", 2.0)
+        self.declare_parameter("camera_read_failure_threshold", 3)
         self.declare_parameter("image_source", "")
         self.declare_parameter("image_fps", 10.0)
 
@@ -164,42 +166,99 @@ class YoloDetectorNode(Node):
         self.get_logger().info(f"Subscribing to image topic: {image_topic}")
 
     def _start_camera_input(self) -> None:
-        camera_source_text = str(self.get_parameter("camera_source").value).strip()
-        camera_backend = str(self.get_parameter("camera_backend").value).lower()
-        camera_source: Any = (
-            int(camera_source_text)
-            if camera_source_text.lstrip("-").isdigit()
-            else camera_source_text
+        self._camera_source_text = str(
+            self.get_parameter("camera_source").value
+        ).strip()
+        self._camera_backend = str(
+            self.get_parameter("camera_backend").value
+        ).lower()
+        self._camera_source: Any = (
+            int(self._camera_source_text)
+            if self._camera_source_text.lstrip("-").isdigit()
+            else self._camera_source_text
         )
-
-        if camera_backend == "auto":
-            capture = cv2.VideoCapture(camera_source)
-        elif camera_backend == "gstreamer":
-            capture = cv2.VideoCapture(camera_source, cv2.CAP_GSTREAMER)
-        else:
+        if self._camera_backend not in {"auto", "gstreamer"}:
             raise ValueError(
                 "Parameter 'camera_backend' must be 'auto' or 'gstreamer', "
-                f"but received {camera_backend!r}."
+                f"but received {self._camera_backend!r}."
             )
 
-        if not capture.isOpened():
-            capture.release()
-            raise RuntimeError(
-                f"Could not open camera source {camera_source_text!r} "
-                f"with backend {camera_backend!r}."
+        self._camera_reconnect_interval = float(
+            self.get_parameter("camera_reconnect_interval").value
+        )
+        self._camera_read_failure_threshold = int(
+            self.get_parameter("camera_read_failure_threshold").value
+        )
+        if self._camera_reconnect_interval <= 0.0:
+            raise ValueError(
+                "Parameter 'camera_reconnect_interval' must be greater than zero."
+            )
+        if self._camera_read_failure_threshold <= 0:
+            raise ValueError(
+                "Parameter 'camera_read_failure_threshold' must be greater than zero."
             )
 
-        self._capture = capture
         requested_fps = float(self.get_parameter("camera_fps").value)
         if requested_fps <= 0.0:
             raise ValueError("Parameter 'camera_fps' must be greater than zero.")
+
+        self._camera_read_failures = 0
+        self._last_camera_reconnect_attempt = 0.0
+        self._connect_camera(initial=True)
         self._input_timer = self.create_timer(
             1.0 / requested_fps, self._camera_callback
         )
         self.get_logger().info(
-            f"Reading camera source {camera_source_text!r} at up to "
-            f"{requested_fps:.1f} FPS"
+            f"Reading camera source {self._camera_source_text!r} at up to "
+            f"{requested_fps:.1f} FPS; reconnect interval="
+            f"{self._camera_reconnect_interval:.1f}s"
         )
+
+    def _create_camera_capture(self) -> cv2.VideoCapture:
+        if self._camera_backend == "gstreamer":
+            return cv2.VideoCapture(self._camera_source, cv2.CAP_GSTREAMER)
+        return cv2.VideoCapture(self._camera_source)
+
+    def _connect_camera(self, initial: bool = False) -> bool:
+        attempted_at = time.monotonic()
+        if (
+            not initial
+            and attempted_at - self._last_camera_reconnect_attempt
+            < self._camera_reconnect_interval
+        ):
+            return False
+        self._last_camera_reconnect_attempt = attempted_at
+
+        try:
+            capture = self._create_camera_capture()
+        except Exception as exc:
+            self._capture = None
+            self.get_logger().warning(
+                f"Camera {self._camera_source_text!r} could not be opened: "
+                f"{exc}; retrying in {self._camera_reconnect_interval:.1f}s."
+            )
+            return False
+
+        if not capture.isOpened():
+            capture.release()
+            self._capture = None
+            self.get_logger().warning(
+                f"Camera {self._camera_source_text!r} is unavailable; "
+                f"retrying in {self._camera_reconnect_interval:.1f}s."
+            )
+            return False
+
+        self._capture = capture
+        self._camera_read_failures = 0
+        if initial:
+            self.get_logger().info(
+                f"Opened camera source {self._camera_source_text!r}."
+            )
+        else:
+            self.get_logger().info(
+                f"Camera {self._camera_source_text!r} reconnected."
+            )
+        return True
 
     def _start_image_input(self) -> None:
         image_source = Path(
@@ -236,13 +295,32 @@ class YoloDetectorNode(Node):
 
     def _camera_callback(self) -> None:
         if self._capture is None:
+            self._connect_camera()
             return
 
-        ok, frame = self._capture.read()
-        if not ok:
-            self.get_logger().warning("Camera frame could not be read.")
+        try:
+            ok, frame = self._capture.read()
+        except Exception as exc:
+            ok, frame = False, None
+            self.get_logger().warning(f"Camera read raised an error: {exc}")
+
+        if not ok or frame is None:
+            self._camera_read_failures += 1
+            if (
+                self._camera_read_failures
+                >= self._camera_read_failure_threshold
+            ):
+                self.get_logger().warning(
+                    "Camera stream was lost; closing it and starting "
+                    "automatic reconnect attempts."
+                )
+                self._capture.release()
+                self._capture = None
+                self._camera_read_failures = 0
+                self._last_camera_reconnect_attempt = time.monotonic()
             return
 
+        self._camera_read_failures = 0
         header = Header()
         header.stamp = self.get_clock().now().to_msg()
         header.frame_id = str(self.get_parameter("camera_frame_id").value)

@@ -23,7 +23,7 @@ Usage: ./deploy/jetson/start_detector.sh [options]
 
 Options:
   --model-id ID          Select weights/ID/best.pt
-  --camera-source VALUE  USB camera index or /dev/video path (default: 0)
+  --camera-source VALUE  Camera index/path, or auto (default: auto)
   --no-build             Skip colcon build for this start
   --record               Start video recording with the detector
   --view                 Open /yolo/annotated_image with rqt_image_view
@@ -78,10 +78,14 @@ done
 : "${ROS_DISTRO:=foxy}"
 : "${VENV_PATH:=${HOME}/venvs/yolo_ros2}"
 : "${MODEL_ID:=yolo26s_baseline_v2}"
-: "${CAMERA_SOURCE:=0}"
+: "${CAMERA_SOURCE:=auto}"
+: "${CAMERA_BY_ID:=}"
+: "${CAMERA_WAIT_SECONDS:=30}"
 : "${CAMERA_BACKEND:=auto}"
 : "${CAMERA_FPS:=30.0}"
 : "${CAMERA_FRAME_ID:=camera_optical_frame}"
+: "${CAMERA_RECONNECT_INTERVAL:=2.0}"
+: "${CAMERA_READ_FAILURE_THRESHOLD:=3}"
 : "${DEVICE:=0}"
 : "${IMGSZ:=640}"
 : "${CONF_THRESHOLD:=0.25}"
@@ -113,13 +117,52 @@ if [[ "$(wc -c < "${model_path}")" -lt 1024 ]] || head -n 1 "${model_path}" | gr
     fail "${model_path} is a Git LFS pointer, not model data. Run: git lfs pull"
 fi
 
-if [[ "${CAMERA_SOURCE}" =~ ^[0-9]+$ ]]; then
-    camera_device="/dev/video${CAMERA_SOURCE}"
-else
-    camera_device="${CAMERA_SOURCE}"
+if [[ ! "${CAMERA_WAIT_SECONDS}" =~ ^[0-9]+$ ]]; then
+    fail "CAMERA_WAIT_SECONDS must be a non-negative integer."
 fi
-[[ -e "${camera_device}" ]] || fail "USB camera node not found: ${camera_device}"
-[[ -r "${camera_device}" ]] || fail "USB camera is not readable: ${camera_device}. Check video group permissions."
+
+resolve_camera_device() {
+    if [[ "${CAMERA_SOURCE}" != "auto" ]]; then
+        if [[ "${CAMERA_SOURCE}" =~ ^[0-9]+$ ]]; then
+            printf '/dev/video%s\n' "${CAMERA_SOURCE}"
+        else
+            printf '%s\n' "${CAMERA_SOURCE}"
+        fi
+        return 0
+    fi
+
+    if [[ -n "${CAMERA_BY_ID}" ]]; then
+        preferred="/dev/v4l/by-id/${CAMERA_BY_ID}"
+        if [[ -e "${preferred}" && -r "${preferred}" ]]; then
+            printf '%s\n' "${preferred}"
+            return 0
+        fi
+    fi
+
+    for candidate in /dev/v4l/by-id/*-video-index0 /dev/video*; do
+        if [[ -e "${candidate}" && -r "${candidate}" ]]; then
+            printf '%s\n' "${candidate}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+camera_device=""
+camera_deadline=$((SECONDS + CAMERA_WAIT_SECONDS))
+while true; do
+    candidate="$(resolve_camera_device || true)"
+    if [[ -n "${candidate}" && -e "${candidate}" && -r "${candidate}" ]]; then
+        camera_device="${candidate}"
+        break
+    fi
+    if ((SECONDS >= camera_deadline)); then
+        fail "USB camera did not appear within ${CAMERA_WAIT_SECONDS}s. Check lsusb and dmesg."
+    fi
+    printf 'Waiting for USB camera... (%ss remaining)\n' \
+        "$((camera_deadline - SECONDS))"
+    sleep 1
+done
 
 # ROS and virtualenv setup files may inspect optional unset variables. Suspend
 # nounset only while sourcing them, then restore strict mode.
@@ -151,21 +194,25 @@ from ultralytics import YOLO
 print(f"Runtime imports: PASS (OpenCV {cv2.__version__})")
 PY
 
-camera_probe="${CAMERA_SOURCE}"
-python3 - "${camera_probe}" <<'PY' || fail "Cannot read a frame from USB camera ${camera_device}. Try --camera-source 1."
+camera_probe="${camera_device}"
+python3 - "${camera_probe}" <<'PY' || fail "Cannot read a frame from USB camera ${camera_device}."
 import sys
+import time
 import cv2
 
 raw = sys.argv[1]
 source = int(raw) if raw.isdigit() else raw
-capture = cv2.VideoCapture(source)
-try:
-    ok, frame = capture.read()
-    if not ok or frame is None:
-        raise SystemExit(1)
-    print(f"USB camera: PASS ({frame.shape[1]}x{frame.shape[0]})")
-finally:
-    capture.release()
+for _ in range(10):
+    capture = cv2.VideoCapture(source)
+    try:
+        ok, frame = capture.read()
+        if ok and frame is not None:
+            print(f"USB camera: PASS ({frame.shape[1]}x{frame.shape[0]})")
+            raise SystemExit(0)
+    finally:
+        capture.release()
+    time.sleep(0.5)
+raise SystemExit(1)
 PY
 
 if is_true "${BUILD_ON_START}"; then
@@ -235,6 +282,8 @@ run_args=(
     -p "camera_backend:=${CAMERA_BACKEND}"
     -p "camera_fps:=${CAMERA_FPS}"
     -p "camera_frame_id:=${CAMERA_FRAME_ID}"
+    -p "camera_reconnect_interval:=${CAMERA_RECONNECT_INTERVAL}"
+    -p "camera_read_failure_threshold:=${CAMERA_READ_FAILURE_THRESHOLD}"
     -p "device:=${DEVICE}"
     -p "imgsz:=${IMGSZ}"
     -p "conf_threshold:=${CONF_THRESHOLD}"

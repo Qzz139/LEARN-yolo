@@ -8,8 +8,9 @@ YOLO 检测节点并发布：
 - `/yolo/fps`
 - `/yolo/annotated_image`
 
-默认模型是 `weights/yolo26s_baseline_v2/best.pt`，默认摄像头是
-`/dev/video0`。所有可调项都集中在 `jetson.env`，不需要修改 Python 文件。
+默认模型是 `weights/yolo26s_baseline_v2/best.pt`。摄像头默认通过
+`/dev/v4l/by-id/` 下的稳定设备标识定位，不依赖会在拔插后变化的
+`/dev/video0` 编号。所有可调项都集中在 `jetson.env`，不需要修改 Python 文件。
 
 检测运行时，终端提供三个快捷键：
 
@@ -43,10 +44,17 @@ chmod +x deploy/jetson/*.sh
 ./deploy/jetson/stop_detector.sh
 ```
 
-若 `/dev/video0` 无法读取而 `/dev/video1` 可以：
+## USB 拔插保护
+
+启动脚本会优先查找配置的稳定 `by-id` 路径，找不到时再自动选择其他
+`*-video-index0` 或 `/dev/video*`，并等待最多 30 秒。程序运行中若连续三帧
+读取失败，会关闭旧句柄，此后每 2 秒尝试重新连接；摄像头重新插入后无需重启
+程序。等待时间和重连频率可在 `jetson.env` 中调整。
+
+只有在调试时才需要绕过自动选择：
 
 ```bash
-./deploy/jetson/start_detector.sh --camera-source 1
+./deploy/jetson/start_detector.sh --camera-source /dev/video1
 ```
 
 若要临时测试 YOLO26m：

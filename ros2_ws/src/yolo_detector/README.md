@@ -7,7 +7,7 @@
 输入有三种模式：
 
 - `topic`（默认）：订阅 `/camera/image_raw`，类型为 `sensor_msgs/msg/Image`。
-- `camera`：通过 OpenCV 直接打开摄像头编号、视频地址或 GStreamer 管道。
+- `camera`：通过 OpenCV 打开摄像头编号、稳定设备路径或 GStreamer 管道；断流后自动重连。
 - `image`：按固定频率重复读取一张图片，用于没有摄像头时验证完整 ROS 2 输出链路。
 
 节点输出：
