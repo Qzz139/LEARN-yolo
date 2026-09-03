@@ -25,6 +25,7 @@ Options:
   --model-id ID          Select weights/ID/best.pt
   --camera-source VALUE  USB camera index or /dev/video path (default: 0)
   --no-build             Skip colcon build for this start
+  --record               Start video recording with the detector
   --view                 Open /yolo/annotated_image with rqt_image_view
   --check-only           Check environment, model and camera without starting
   -h, --help             Show this help
@@ -50,6 +51,10 @@ while (($#)); do
             ;;
         --no-build)
             BUILD_ON_START=false
+            shift
+            ;;
+        --record)
+            RECORD_ON_START=true
             shift
             ;;
         --view)
@@ -82,6 +87,10 @@ done
 : "${CONF_THRESHOLD:=0.25}"
 : "${IOU_THRESHOLD:=0.45}"
 : "${PUBLISH_ANNOTATED_IMAGE:=true}"
+: "${CAPTURE_OUTPUT_DIR:=}"
+: "${RECORD_ON_START:=false}"
+: "${RECORDING_FPS:=10.0}"
+: "${RECORDING_CODEC:=mp4v}"
 : "${BUILD_ON_START:=true}"
 : "${OPEN_VIEWER:=false}"
 
@@ -91,6 +100,9 @@ workspace="${project_root}/ros2_ws"
 model_path="${project_root}/weights/${MODEL_ID}/best.pt"
 output_dir="${project_root}/outputs/jetson"
 pid_file="${output_dir}/yolo_detector.pid"
+if [[ -z "${CAPTURE_OUTPUT_DIR}" ]]; then
+    CAPTURE_OUTPUT_DIR="${project_root}/outputs/captures"
+fi
 
 [[ -f "${ros_setup}" ]] || fail "ROS 2 setup not found: ${ros_setup}"
 [[ -f "${venv_activate}" ]] || fail "Python environment not found: ${VENV_PATH}"
@@ -178,6 +190,7 @@ printf 'Model   : %s\n' "${model_path}"
 printf 'Camera  : %s\n' "${camera_device}"
 printf 'ROS 2   : %s\n' "${ROS_DISTRO}"
 printf 'Device  : %s\n' "${DEVICE}"
+printf 'Captures: %s\n' "${CAPTURE_OUTPUT_DIR}"
 
 if is_true "${check_only}"; then
     exit 0
@@ -227,6 +240,10 @@ run_args=(
     -p "conf_threshold:=${CONF_THRESHOLD}"
     -p "iou_threshold:=${IOU_THRESHOLD}"
     -p "publish_annotated_image:=${PUBLISH_ANNOTATED_IMAGE}"
+    -p "capture_output_dir:=${CAPTURE_OUTPUT_DIR}"
+    -p "record_on_start:=${RECORD_ON_START}"
+    -p "recording_fps:=${RECORDING_FPS}"
+    -p "recording_codec:=${RECORDING_CODEC}"
 )
 
 printf '\nStarting YOLO detector. Press Ctrl+C to stop.\n'
@@ -243,6 +260,37 @@ if is_true "${OPEN_VIEWER}"; then
     else
         printf 'Viewer was requested but rqt_image_view or DISPLAY is unavailable.\n' >&2
     fi
+fi
+
+if [[ -t 0 ]]; then
+    recording_enabled="${RECORD_ON_START}"
+    printf '\nControls: P=photo, R=start/stop recording, Q=quit\n'
+    while kill -0 "${detector_pid}" 2>/dev/null; do
+        key=""
+        if IFS= read -rsn1 -t 0.2 key; then
+            case "${key,,}" in
+                p)
+                    ros2 service call /yolo/save_snapshot \
+                        std_srvs/srv/Trigger "{}" || true
+                    ;;
+                r)
+                    if is_true "${recording_enabled}"; then
+                        desired=false
+                    else
+                        desired=true
+                    fi
+                    if ros2 service call /yolo/set_recording \
+                        std_srvs/srv/SetBool "{data: ${desired}}"; then
+                        recording_enabled="${desired}"
+                    fi
+                    ;;
+                q)
+                    kill -INT "${detector_pid}" 2>/dev/null || true
+                    break
+                    ;;
+            esac
+        fi
+    done
 fi
 
 set +e

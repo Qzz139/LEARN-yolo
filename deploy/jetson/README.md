@@ -11,6 +11,15 @@ YOLO 检测节点并发布：
 默认模型是 `weights/yolo26s_baseline_v2/best.pt`，默认摄像头是
 `/dev/video0`。所有可调项都集中在 `jetson.env`，不需要修改 Python 文件。
 
+检测运行时，终端提供三个快捷键：
+
+- `P`：保存当前带检测框画面为 JPEG；
+- `R`：开始或停止保存带检测框的 MP4；
+- `Q`：退出程序。
+
+照片和视频默认保存在 `outputs/captures/`。也可以在启动时加 `--record`，让
+录像随检测自动开始。
+
 ## 第一次使用
 
 在 Jetson 项目根目录运行：
@@ -58,4 +67,15 @@ chmod +x deploy/jetson/*.sh
 快捷方式并选择“允许启动”。要自动打开检测画面，把 `jetson.env` 中的
 `OPEN_VIEWER=false` 改成 `OPEN_VIEWER=true`。
 
-运行日志保存在 `outputs/jetson/`，该目录不会提交到 Git。
+运行日志保存在 `outputs/jetson/`，该目录不会提交到 Git。照片和录像也属于
+运行产物，不会自动提交到 Git；需要留档时再有选择地复制到正式成果目录。
+
+## ROS 2 服务控制
+
+没有交互终端时，可从另一终端调用：
+
+```bash
+ros2 service call /yolo/save_snapshot std_srvs/srv/Trigger "{}"
+ros2 service call /yolo/set_recording std_srvs/srv/SetBool "{data: true}"
+ros2 service call /yolo/set_recording std_srvs/srv/SetBool "{data: false}"
+```

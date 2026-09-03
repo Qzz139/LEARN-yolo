@@ -18,6 +18,12 @@ yolo_detector:
     fps_topic: "/yolo/fps"
     publish_annotated_image: true
 
+    # Snapshot/recording services save annotated frames here.
+    capture_output_dir: ""
+    record_on_start: false
+    recording_fps: 10.0
+    recording_codec: "mp4v"
+
     imgsz: 640
     conf_threshold: 0.25
     iou_threshold: 0.45

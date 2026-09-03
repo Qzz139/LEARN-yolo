@@ -16,6 +16,14 @@
 - `/yolo/annotated_image`：`sensor_msgs/msg/Image`。带检测框的图像，可通过参数关闭以减少开销。
 - `/yolo/fps`：`std_msgs/msg/Float32`。按实际输出帧间隔计算的平滑 FPS。
 
+媒体控制服务：
+
+- `/yolo/save_snapshot`：`std_srvs/srv/Trigger`，保存最近的带框画面；
+- `/yolo/set_recording`：`std_srvs/srv/SetBool`，`true` 开始录像，`false` 停止并保存。
+
+默认保存目录由 `capture_output_dir` 控制，录像帧率和编码分别由
+`recording_fps`、`recording_codec` 控制。
+
 类别顺序当前固定为训练数据的 `keyboard`、`monitor`、`mouse`，可在 [`config/detector.yaml`](config/detector.yaml) 中修改。
 
 ## 尚待部署时填写的配置

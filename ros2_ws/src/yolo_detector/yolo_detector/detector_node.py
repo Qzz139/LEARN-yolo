@@ -13,7 +13,10 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32, Header
+from std_srvs.srv import SetBool, Trigger
 from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
+
+from .media_capture import MediaCapture
 
 
 class YoloDetectorNode(Node):
@@ -31,6 +34,23 @@ class YoloDetectorNode(Node):
         self._last_completed_at: Optional[float] = None
         self._fps_ema: Optional[float] = None
 
+        capture_output_text = str(
+            self.get_parameter("capture_output_dir").value
+        ).strip()
+        capture_output_dir = (
+            Path(capture_output_text).expanduser()
+            if capture_output_text
+            else Path.home() / "yolo_captures"
+        )
+        self._media_capture = MediaCapture(
+            output_dir=capture_output_dir,
+            recording_fps=float(self.get_parameter("recording_fps").value),
+            recording_codec=str(self.get_parameter("recording_codec").value),
+            cv2_module=cv2,
+        )
+        if bool(self.get_parameter("record_on_start").value):
+            self._media_capture.request_recording()
+
         detections_topic = str(self.get_parameter("detections_topic").value)
         fps_topic = str(self.get_parameter("fps_topic").value)
         annotated_topic = str(self.get_parameter("annotated_image_topic").value)
@@ -47,6 +67,13 @@ class YoloDetectorNode(Node):
             self._annotated_publisher = self.create_publisher(
                 Image, annotated_topic, qos_profile_sensor_data
             )
+
+        self._snapshot_service = self.create_service(
+            Trigger, "/yolo/save_snapshot", self._save_snapshot
+        )
+        self._recording_service = self.create_service(
+            SetBool, "/yolo/set_recording", self._set_recording
+        )
 
         self._capture: Optional[cv2.VideoCapture] = None
         self._input_timer = None
@@ -70,6 +97,10 @@ class YoloDetectorNode(Node):
             f"YOLO detector ready: input={source_mode}, "
             f"detections={detections_topic}, fps={fps_topic}"
         )
+        self.get_logger().info(
+            "Capture controls: snapshot=/yolo/save_snapshot, "
+            "recording=/yolo/set_recording"
+        )
 
     def _declare_parameters(self) -> None:
         self.declare_parameter("model_path", "")
@@ -86,6 +117,11 @@ class YoloDetectorNode(Node):
         self.declare_parameter("annotated_image_topic", "/yolo/annotated_image")
         self.declare_parameter("fps_topic", "/yolo/fps")
         self.declare_parameter("publish_annotated_image", True)
+
+        self.declare_parameter("capture_output_dir", "")
+        self.declare_parameter("record_on_start", False)
+        self.declare_parameter("recording_fps", 10.0)
+        self.declare_parameter("recording_codec", "mp4v")
 
         self.declare_parameter("imgsz", 640)
         self.declare_parameter("conf_threshold", 0.25)
@@ -288,14 +324,70 @@ class YoloDetectorNode(Node):
         detections_message = self._build_detections_message(result, header)
         self._detections_publisher.publish(detections_message)
 
-        if self._annotated_publisher is not None:
+        needs_annotated_frame = (
+            self._annotated_publisher is not None
+            or self._media_capture.recording_requested
+        )
+        if needs_annotated_frame:
             annotated_frame = result.plot()
-            annotated_message = self._bgr8_image_message(
-                annotated_frame, header
-            )
-            self._annotated_publisher.publish(annotated_message)
+            was_recording = self._media_capture.is_recording
+            try:
+                recording_path = self._media_capture.process_frame(
+                    annotated_frame
+                )
+                if recording_path is not None and not was_recording:
+                    self.get_logger().info(
+                        f"Video recording started: {recording_path}"
+                    )
+            except Exception as exc:
+                self._media_capture.stop_recording()
+                self.get_logger().error(f"Video recording failed: {exc}")
+
+            if self._annotated_publisher is not None:
+                annotated_message = self._bgr8_image_message(
+                    annotated_frame, header
+                )
+                self._annotated_publisher.publish(annotated_message)
 
         self._publish_measured_fps()
+
+    def _save_snapshot(
+        self, request: Trigger.Request, response: Trigger.Response
+    ) -> Trigger.Response:
+        del request
+        try:
+            path = self._media_capture.save_snapshot()
+            response.success = True
+            response.message = str(path)
+            self.get_logger().info(f"Snapshot saved: {path}")
+        except Exception as exc:
+            response.success = False
+            response.message = str(exc)
+            self.get_logger().error(f"Snapshot failed: {exc}")
+        return response
+
+    def _set_recording(
+        self, request: SetBool.Request, response: SetBool.Response
+    ) -> SetBool.Response:
+        if request.data:
+            if self._media_capture.recording_requested:
+                response.success = True
+                response.message = "Recording is already active or armed."
+            else:
+                self._media_capture.request_recording()
+                response.success = True
+                response.message = "Recording will start on the next frame."
+                self.get_logger().info(response.message)
+            return response
+
+        path = self._media_capture.stop_recording()
+        response.success = True
+        if path is None:
+            response.message = "Recording was not active."
+        else:
+            response.message = f"Recording saved: {path}"
+            self.get_logger().info(response.message)
+        return response
 
     def _build_detections_message(
         self, result: Any, header: Header
@@ -420,6 +512,10 @@ class YoloDetectorNode(Node):
             )
 
     def destroy_node(self) -> bool:
+        recording_path = self._media_capture.stop_recording()
+        if recording_path is not None:
+            self.get_logger().info(f"Recording saved: {recording_path}")
+        self._media_capture.close()
         if self._capture is not None:
             self._capture.release()
             self._capture = None
