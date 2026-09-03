@@ -81,6 +81,11 @@ ros2 launch yolo_detector yolo_detector.launch.py \
 ROS 2 Foxy 的 `cv_bridge` 按 OpenCV 4 的图像类型编号编译。节点已对
 OpenCV 5 做兼容处理，无须为了图像消息转换而替换 Jetson 当前的 OpenCV。
 
+在 ARM64 Jetson 上，启动文件会在文件存在时自动预加载
+`/usr/lib/aarch64-linux-gnu/libgomp.so.1`，避免 PyTorch 在 ROS 依赖加载后出现
+`cannot allocate memory in static TLS block`。其他平台不会自动设置该变量，也可通过
+`libgomp_path` 启动参数显式覆盖或禁用。
+
 也可以直接编辑 `config/detector.yaml`，然后只执行：
 
 ```bash

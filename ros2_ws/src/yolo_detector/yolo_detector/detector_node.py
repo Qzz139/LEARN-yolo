@@ -110,8 +110,8 @@ class YoloDetectorNode(Node):
             from ultralytics import YOLO
         except ImportError as exc:
             raise RuntimeError(
-                "The 'ultralytics' Python package is not installed in the ROS 2 "
-                "runtime environment."
+                "Could not import Ultralytics or one of its dependencies. "
+                f"Original import error: {exc}"
             ) from exc
 
         self.get_logger().info(f"Loading YOLO model: {model_path}")
