@@ -31,6 +31,7 @@
 - `detector_node.py`：ROS 节点编排、YOLO 推理、话题和服务；
 - `camera_stream.py`：摄像头打开、读帧、断流检测和自动重连；
 - `ros_messages.py`：图像转换、检测消息构造和 Foxy/新版消息兼容；
+- `opencv_view.py`：可选 OpenCV 实时窗口及窗口生命周期；
 - `media_capture.py`：JPEG 拍照与 MP4 录像。
 ## 尚待部署时填写的配置
 

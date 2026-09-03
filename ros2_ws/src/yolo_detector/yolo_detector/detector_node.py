@@ -17,6 +17,7 @@ from std_srvs.srv import SetBool, Trigger
 
 from .camera_stream import RecoveringCamera
 from .media_capture import MediaCapture
+from .opencv_view import OpenCvViewer
 from .ros_messages import (
     bgr8_image_message,
     build_detections_message,
@@ -51,6 +52,10 @@ class YoloDetectorNode(Node):
             output_dir=capture_output_dir,
             recording_fps=float(self.get_parameter("recording_fps").value),
             recording_codec=str(self.get_parameter("recording_codec").value),
+            cv2_module=cv2,
+        )
+        self._viewer = OpenCvViewer(
+            enabled=bool(self.get_parameter("show_window").value),
             cv2_module=cv2,
         )
         if bool(self.get_parameter("record_on_start").value):
@@ -124,6 +129,7 @@ class YoloDetectorNode(Node):
         self.declare_parameter("annotated_image_topic", "/yolo/annotated_image")
         self.declare_parameter("fps_topic", "/yolo/fps")
         self.declare_parameter("publish_annotated_image", True)
+        self.declare_parameter("show_window", False)
 
         self.declare_parameter("capture_output_dir", "")
         self.declare_parameter("record_on_start", False)
@@ -280,6 +286,7 @@ class YoloDetectorNode(Node):
         needs_annotated_frame = (
             self._annotated_publisher is not None
             or self._media_capture.recording_requested
+            or self._viewer.enabled
         )
         if needs_annotated_frame:
             annotated_frame = result.plot()
@@ -301,6 +308,16 @@ class YoloDetectorNode(Node):
                     self._bridge, annotated_frame, header
                 )
                 self._annotated_publisher.publish(annotated_message)
+
+            if self._viewer.enabled:
+                try:
+                    if not self._viewer.show(annotated_frame):
+                        self.get_logger().info("OpenCV window closed; stopping.")
+                        if rclpy.ok():
+                            rclpy.shutdown()
+                        return
+                except RuntimeError as exc:
+                    self.get_logger().error(str(exc))
 
         self._publish_measured_fps()
 
@@ -375,6 +392,7 @@ class YoloDetectorNode(Node):
         if recording_path is not None:
             self.get_logger().info(f"Recording saved: {recording_path}")
         self._media_capture.close()
+        self._viewer.close()
         if self._camera_stream is not None:
             self._camera_stream.close()
             self._camera_stream = None

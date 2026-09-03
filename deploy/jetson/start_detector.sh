@@ -26,7 +26,7 @@ Options:
   --camera-source VALUE  Camera index/path, or auto (default: auto)
   --no-build             Skip colcon build for this start
   --record               Start video recording with the detector
-  --view                 Open /yolo/annotated_image with rqt_image_view
+  --view                 Open the detector live OpenCV window
   --check-only           Check environment, model and camera without starting
   -h, --help             Show this help
 EOF
@@ -97,6 +97,12 @@ done
 : "${RECORDING_CODEC:=mp4v}"
 : "${BUILD_ON_START:=true}"
 : "${OPEN_VIEWER:=false}"
+
+if is_true "${OPEN_VIEWER}" \
+    && [[ -z "${DISPLAY:-}" ]] \
+    && [[ -z "${WAYLAND_DISPLAY:-}" ]]; then
+    fail "--view requires a graphical desktop (DISPLAY or WAYLAND_DISPLAY)."
+fi
 
 ros_setup="/opt/ros/${ROS_DISTRO}/setup.bash"
 venv_activate="${VENV_PATH}/bin/activate"
@@ -255,14 +261,11 @@ fi
 timestamp="$(date +%Y%m%d-%H%M%S)"
 log_file="${output_dir}/detector-${timestamp}.log"
 detector_pid=""
-viewer_pid=""
 
 cleanup() {
     status=$?
     trap - INT TERM EXIT
-    if [[ -n "${viewer_pid}" ]] && kill -0 "${viewer_pid}" 2>/dev/null; then
-        kill "${viewer_pid}" 2>/dev/null || true
-    fi
+
     if [[ -n "${detector_pid}" ]] && kill -0 "${detector_pid}" 2>/dev/null; then
         kill -INT "${detector_pid}" 2>/dev/null || true
         wait "${detector_pid}" 2>/dev/null || true
@@ -289,6 +292,7 @@ run_args=(
     -p "conf_threshold:=${CONF_THRESHOLD}"
     -p "iou_threshold:=${IOU_THRESHOLD}"
     -p "publish_annotated_image:=${PUBLISH_ANNOTATED_IMAGE}"
+    -p "show_window:=${OPEN_VIEWER}"
     -p "capture_output_dir:=${CAPTURE_OUTPUT_DIR}"
     -p "record_on_start:=${RECORD_ON_START}"
     -p "recording_fps:=${RECORDING_FPS}"
@@ -301,15 +305,6 @@ ros2 run yolo_detector yolo_detector_node "${run_args[@]}" \
     > >(tee -a "${log_file}") 2>&1 &
 detector_pid=$!
 printf '%s\n' "${detector_pid}" > "${pid_file}"
-
-if is_true "${OPEN_VIEWER}"; then
-    if command -v rqt_image_view >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
-        (sleep 4; rqt_image_view /yolo/annotated_image) &
-        viewer_pid=$!
-    else
-        printf 'Viewer was requested but rqt_image_view or DISPLAY is unavailable.\n' >&2
-    fi
-fi
 
 if [[ -t 0 ]]; then
     recording_enabled="${RECORD_ON_START}"
