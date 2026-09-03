@@ -38,7 +38,7 @@ python -m venv .venv
 | --- | --- | --- |
 | `yolo26n_baseline_v1` | YOLO26n | 已归档，可运行 |
 | `yolo26s_baseline_v2` | YOLO26s | 当前默认候选，可运行 |
-| `yolo26m_candidate` | YOLO26m | 待训练，尚无ONNX模型 |
+| `yolo26m_baseline_v1` | YOLO26m | 基准对比候选，可运行 |
 
 ```text
 # 查看模型
@@ -46,6 +46,9 @@ apps\local_preview\run.cmd --list-models
 
 # 指定已导出的候选
 apps\local_preview\run.cmd --model-id yolo26n_baseline_v1 --source 0
+
+# 对比YOLO26m候选
+apps\local_preview\run.cmd --model-id yolo26m_baseline_v1 --source 0
 
 # 指定任意ONNX文件；其优先级最高
 apps\local_preview\run.cmd --model path\to\best.onnx --source 0

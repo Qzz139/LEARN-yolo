@@ -18,7 +18,10 @@
 
 - YOLO26n baseline v1：已归档；
 - YOLO26s baseline v2：当前默认候选；
-- YOLO26m：已加入候选，尚待训练和导出，当前不能运行。
+- YOLO26m baseline v1：已训练并导出，作为现场性能对比候选；
+
+YOLO26m在当前验证集上的指标低于YOLO26s，因此默认模型暂不切换。Jetson
+接入真实摄像头后，将在相同输入和参数下比较两者的正确率与FPS。
 
 程序不会再通过 `runs/` 或文件时间猜测模型。显式 `--model` 路径优先，
 否则使用 `--model-id` 或清单中的 `active_model`。

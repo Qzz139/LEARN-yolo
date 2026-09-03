@@ -36,12 +36,30 @@
         "map50_95": 0.70211
       }
     },
-    "yolo26m_candidate": {
+    "yolo26m_baseline_v1": {
       "family": "YOLO26m",
-      "status": "planned_training",
+      "status": "benchmark_candidate",
       "input_size": 640,
-      "artifacts": {},
-      "notes": "Train and export before this candidate can be selected at runtime."
+      "artifacts": {
+        "pt": "yolo26m_baseline_v1/best.pt",
+        "onnx": "yolo26m_baseline_v1/best.onnx"
+      },
+      "validation": {
+        "best_epoch": 66,
+        "precision": 0.93188,
+        "recall": 0.82248,
+        "map50": 0.89481,
+        "map50_95": 0.63493
+      },
+      "revalidation": {
+        "images": 18,
+        "instances": 28,
+        "precision": 0.911,
+        "recall": 0.882,
+        "map50": 0.877,
+        "map50_95": 0.616
+      },
+      "notes": "Runnable PT and ONNX candidate; keep YOLO26s as default until Jetson camera A/B testing is complete."
     }
   }
 }
