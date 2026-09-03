@@ -14,6 +14,7 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32, Header
 from std_srvs.srv import SetBool, Trigger
+from vision_msgs.msg import Detection2DArray
 
 from .camera_stream import RecoveringCamera
 from .media_capture import MediaCapture
