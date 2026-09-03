@@ -47,7 +47,7 @@ class ModelCatalogTests(unittest.TestCase):
     def test_active_model_is_selected(self) -> None:
         selection = resolve_model(manifest_path=self.manifest_path)
         self.assertEqual(selection.model_id, "small")
-        self.assertEqual(selection.model_path, self.model_path)
+        self.assertEqual(selection.model_path, self.model_path.resolve())
         self.assertEqual(selection.labels, ("keyboard", "monitor", "mouse"))
 
     def test_planned_model_cannot_run_without_artifact(self) -> None:
@@ -65,7 +65,7 @@ class ModelCatalogTests(unittest.TestCase):
             explicit_model_id="medium",
         )
         self.assertEqual(selection.model_id, "custom")
-        self.assertEqual(selection.model_path, custom_path)
+        self.assertEqual(selection.model_path, custom_path.resolve())
 
     def test_catalog_marks_active_model(self) -> None:
         lines = catalog_lines(self.manifest_path)
