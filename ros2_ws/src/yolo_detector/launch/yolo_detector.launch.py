@@ -17,11 +17,15 @@ def _launch_detector(context: LaunchContext):
         "camera_source": LaunchConfiguration("camera_source").perform(context),
         "image_source": LaunchConfiguration("image_source").perform(context),
     }
-    parameters.extend(
-        {name: value}
+    overrides = {
+        name: value
         for name, value in optional_overrides.items()
         if value != ""
-    )
+    }
+    if overrides:
+        # Keep every command-line override in one parameter file. Foxy can lose
+        # values when launch_ros emits several consecutive temporary files.
+        parameters.append(overrides)
 
     return [
         Node(
