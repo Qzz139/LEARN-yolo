@@ -8,6 +8,7 @@
 
 - `topic`（默认）：订阅 `/camera/image_raw`，类型为 `sensor_msgs/msg/Image`。
 - `camera`：通过 OpenCV 直接打开摄像头编号、视频地址或 GStreamer 管道。
+- `image`：按固定频率重复读取一张图片，用于没有摄像头时验证完整 ROS 2 输出链路。
 
 节点输出：
 
@@ -67,6 +68,18 @@ ros2 launch yolo_detector yolo_detector.launch.py \
   source_mode:=camera \
   camera_source:=0
 ```
+
+没有摄像头时，可先用仓库中的图片做端到端验证：
+
+```bash
+ros2 launch yolo_detector yolo_detector.launch.py \
+  model_path:=/absolute/path/to/best.pt \
+  source_mode:=image \
+  image_source:=/absolute/path/to/image.jpg
+```
+
+ROS 2 Foxy 的 `cv_bridge` 按 OpenCV 4 的图像类型编号编译。节点已对
+OpenCV 5 做兼容处理，无须为了图像消息转换而替换 Jetson 当前的 OpenCV。
 
 也可以直接编辑 `config/detector.yaml`，然后只执行：
 

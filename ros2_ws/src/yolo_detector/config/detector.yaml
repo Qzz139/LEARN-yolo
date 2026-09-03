@@ -3,13 +3,15 @@ yolo_detector:
     # Deployment-specific: set this to an absolute .pt, .onnx, or .engine path.
     model_path: ""
 
-    # "topic": subscribe to image_topic; "camera": open camera_source directly.
+    # "topic": subscribe; "camera": open a camera; "image": repeat one file.
     source_mode: "topic"
     image_topic: "/camera/image_raw"
     camera_source: "0"
     camera_backend: "auto"  # "auto" or "gstreamer"
     camera_fps: 30.0
     camera_frame_id: "camera_optical_frame"
+    image_source: ""
+    image_fps: 10.0
 
     detections_topic: "/yolo/detections"
     annotated_image_topic: "/yolo/annotated_image"

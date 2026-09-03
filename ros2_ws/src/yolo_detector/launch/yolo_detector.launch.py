@@ -15,6 +15,7 @@ def _launch_detector(context: LaunchContext):
         "source_mode": LaunchConfiguration("source_mode").perform(context),
         "image_topic": LaunchConfiguration("image_topic").perform(context),
         "camera_source": LaunchConfiguration("camera_source").perform(context),
+        "image_source": LaunchConfiguration("image_source").perform(context),
     }
     parameters.extend(
         {name: value}
@@ -64,6 +65,11 @@ def generate_launch_description() -> LaunchDescription:
                 "camera_source",
                 default_value="",
                 description="Optional camera index or pipeline override.",
+            ),
+            DeclareLaunchArgument(
+                "image_source",
+                default_value="",
+                description="Optional static image path for image mode.",
             ),
             OpaqueFunction(function=_launch_detector),
         ]

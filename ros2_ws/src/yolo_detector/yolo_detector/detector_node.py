@@ -49,7 +49,8 @@ class YoloDetectorNode(Node):
             )
 
         self._capture: Optional[cv2.VideoCapture] = None
-        self._camera_timer = None
+        self._input_timer = None
+        self._static_frame = None
         self._image_subscription = None
 
         source_mode = str(self.get_parameter("source_mode").value).lower()
@@ -57,9 +58,11 @@ class YoloDetectorNode(Node):
             self._start_topic_input()
         elif source_mode == "camera":
             self._start_camera_input()
+        elif source_mode == "image":
+            self._start_image_input()
         else:
             raise ValueError(
-                "Parameter 'source_mode' must be either 'topic' or 'camera', "
+                "Parameter 'source_mode' must be 'topic', 'camera', or 'image', "
                 f"but received {source_mode!r}."
             )
 
@@ -76,6 +79,8 @@ class YoloDetectorNode(Node):
         self.declare_parameter("camera_backend", "auto")
         self.declare_parameter("camera_fps", 30.0)
         self.declare_parameter("camera_frame_id", "camera_optical_frame")
+        self.declare_parameter("image_source", "")
+        self.declare_parameter("image_fps", 10.0)
 
         self.declare_parameter("detections_topic", "/yolo/detections")
         self.declare_parameter("annotated_image_topic", "/yolo/annotated_image")
@@ -152,7 +157,7 @@ class YoloDetectorNode(Node):
         requested_fps = float(self.get_parameter("camera_fps").value)
         if requested_fps <= 0.0:
             raise ValueError("Parameter 'camera_fps' must be greater than zero.")
-        self._camera_timer = self.create_timer(
+        self._input_timer = self.create_timer(
             1.0 / requested_fps, self._camera_callback
         )
         self.get_logger().info(
@@ -160,11 +165,35 @@ class YoloDetectorNode(Node):
             f"{requested_fps:.1f} FPS"
         )
 
+    def _start_image_input(self) -> None:
+        image_source = Path(
+            str(self.get_parameter("image_source").value).strip()
+        ).expanduser()
+        if not image_source.is_file():
+            raise FileNotFoundError(
+                f"Static image source was not found: {image_source}"
+            )
+
+        frame = cv2.imread(str(image_source), cv2.IMREAD_COLOR)
+        if frame is None:
+            raise RuntimeError(f"Could not decode static image: {image_source}")
+
+        requested_fps = float(self.get_parameter("image_fps").value)
+        if requested_fps <= 0.0:
+            raise ValueError("Parameter 'image_fps' must be greater than zero.")
+
+        self._static_frame = frame
+        self._input_timer = self.create_timer(
+            1.0 / requested_fps, self._static_image_callback
+        )
+        self.get_logger().info(
+            f"Repeating static image {str(image_source)!r} at up to "
+            f"{requested_fps:.1f} FPS"
+        )
+
     def _image_callback(self, image_message: Image) -> None:
         try:
-            frame = self._bridge.imgmsg_to_cv2(
-                image_message, desired_encoding="bgr8"
-            )
+            frame = self._image_message_to_bgr(image_message)
             self._process_frame(frame, image_message.header)
         except Exception as exc:  # Keep the ROS node alive after a bad frame.
             self.get_logger().error(f"Failed to process ROS image: {exc}")
@@ -187,6 +216,61 @@ class YoloDetectorNode(Node):
         except Exception as exc:  # Keep the ROS node alive after a bad frame.
             self.get_logger().error(f"Failed to process camera frame: {exc}")
 
+    def _static_image_callback(self) -> None:
+        if self._static_frame is None:
+            return
+
+        header = Header()
+        header.stamp = self.get_clock().now().to_msg()
+        header.frame_id = str(self.get_parameter("camera_frame_id").value)
+
+        try:
+            self._process_frame(self._static_frame.copy(), header)
+        except Exception as exc:  # Keep the ROS node alive after a bad frame.
+            self.get_logger().error(f"Failed to process static image: {exc}")
+
+    def _image_message_to_bgr(self, image_message: Image) -> Any:
+        """Convert common ROS image encodings without OpenCV 4/5 ABI mixing."""
+
+        frame = self._bridge.imgmsg_to_cv2(
+            image_message, desired_encoding="passthrough"
+        )
+        encoding = image_message.encoding.lower()
+
+        if encoding in {"bgr8", "8uc3"}:
+            return frame
+        if encoding == "rgb8":
+            return cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        if encoding in {"mono8", "8uc1"}:
+            return cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+        if encoding == "bgra8":
+            return cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+        if encoding == "rgba8":
+            return cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
+
+        raise ValueError(
+            f"Unsupported ROS image encoding {image_message.encoding!r}; "
+            "expected bgr8, rgb8, mono8, bgra8, or rgba8."
+        )
+
+    def _bgr8_image_message(self, frame: Any, header: Header) -> Image:
+        """Create bgr8 safely when Foxy cv_bridge meets OpenCV 5.
+
+        Foxy cv_bridge validates explicit encodings using OpenCV 4 numeric type
+        IDs. OpenCV 5 changed those IDs. The passthrough conversion serializes
+        the same uint8 BGR bytes without that obsolete numeric-ID comparison.
+        """
+
+        message = self._bridge.cv2_to_imgmsg(frame, encoding="passthrough")
+        if message.encoding != "8UC3":
+            raise ValueError(
+                "Annotated frame must be an 8-bit, three-channel BGR image, "
+                f"but cv_bridge reported {message.encoding!r}."
+            )
+        message.encoding = "bgr8"
+        message.header = header
+        return message
+
     def _process_frame(self, frame: Any, header: Header) -> None:
         predict_options = {
             "source": frame,
@@ -206,10 +290,9 @@ class YoloDetectorNode(Node):
 
         if self._annotated_publisher is not None:
             annotated_frame = result.plot()
-            annotated_message = self._bridge.cv2_to_imgmsg(
-                annotated_frame, encoding="bgr8"
+            annotated_message = self._bgr8_image_message(
+                annotated_frame, header
             )
-            annotated_message.header = header
             self._annotated_publisher.publish(annotated_message)
 
         self._publish_measured_fps()
@@ -246,10 +329,11 @@ class YoloDetectorNode(Node):
             )
 
             hypothesis = ObjectHypothesisWithPose()
-            hypothesis.hypothesis.class_id = self._resolve_class_name(
-                class_id, model_names
+            self._set_hypothesis(
+                hypothesis,
+                class_name=self._resolve_class_name(class_id, model_names),
+                confidence=float(confidence),
             )
-            hypothesis.hypothesis.score = float(confidence)
             detection.results.append(hypothesis)
             output.detections.append(detection)
 
@@ -275,6 +359,24 @@ class YoloDetectorNode(Node):
         center.theta = 0.0
         detection.bbox.size_x = width
         detection.bbox.size_y = height
+
+    @staticmethod
+    def _set_hypothesis(
+        hypothesis: ObjectHypothesisWithPose,
+        class_name: str,
+        confidence: float,
+    ) -> None:
+        """Fill both Foxy and newer vision_msgs hypothesis schemas."""
+
+        if hasattr(hypothesis, "hypothesis"):
+            hypothesis.hypothesis.class_id = class_name
+            hypothesis.hypothesis.score = confidence
+            return
+        if hasattr(hypothesis, "id") and hasattr(hypothesis, "score"):
+            hypothesis.id = class_name
+            hypothesis.score = confidence
+            return
+        raise TypeError("Unsupported vision_msgs ObjectHypothesisWithPose schema")
 
     def _resolve_class_name(
         self,
