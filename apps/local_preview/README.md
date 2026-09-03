@@ -37,8 +37,9 @@ python -m venv .venv
 | ID | 模型 | 状态 |
 | --- | --- | --- |
 | `yolo26n_baseline_v1` | YOLO26n | 已归档，可运行 |
-| `yolo26s_baseline_v2` | YOLO26s | 当前默认候选，可运行 |
-| `yolo26m_baseline_v1` | YOLO26m | 基准对比候选，可运行 |
+| `yolo26s_baseline_v2` | YOLO26s | 旧三分类候选，可运行 |
+| `yolo26m_baseline_v1` | YOLO26m | 旧三分类基准，可运行 |
+| `yolo26m_tabletop_v1` | YOLO26m | 当前 11 分类默认候选 |
 
 ```text
 # 查看模型
@@ -47,12 +48,14 @@ apps\local_preview\run.cmd --list-models
 # 指定已导出的候选
 apps\local_preview\run.cmd --model-id yolo26n_baseline_v1 --source 0
 
-# 对比YOLO26m候选
-apps\local_preview\run.cmd --model-id yolo26m_baseline_v1 --source 0
+# 显式运行当前11分类模型
+apps\local_preview\run.cmd --model-id yolo26m_tabletop_v1 --source 0
 
-# 指定任意ONNX文件；其优先级最高
+# 指定任意ONNX文件；其优先级最高，必要时同时传入 --labels
 apps\local_preview\run.cmd --model path\to\best.onnx --source 0
 ```
+
+清单中的每个模型可以定义自己的类别列表；未定义时才使用全局旧三分类列表。
 
 选择优先级为：
 

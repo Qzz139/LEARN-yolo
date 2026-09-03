@@ -46,6 +46,15 @@ instances:
 `earphone` and `pen` have the weakest localization metrics and are the first
 classes to target when collecting additional hard examples.
 
+## ONNX desktop validation
+
+The exported ONNX model completed the full 151-image test split through
+Ultralytics ONNX Runtime on CPU: precision `0.841`, recall `0.796`, mAP50
+`0.832`, and mAP50-95 `0.624`, averaging about `100.5 ms/image`. A separate
+OpenCV DNN batch smoke test processed all 151 images successfully. The small
+metric reduction from PT (`0.647` to `0.624` mAP50-95) should be retained in
+deployment reporting rather than mixed with the PT result.
+
 ## Artifacts
 
 - `best.pt`: PyTorch checkpoint for Ultralytics and Jetson deployment

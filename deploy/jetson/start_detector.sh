@@ -22,7 +22,8 @@ usage() {
 Usage: ./deploy/jetson/start_detector.sh [options]
 
 Options:
-  --model-id ID          Select weights/ID/best.pt
+  --model-id ID          Select a directory under weights/
+  --model-file FILE      Select the model artifact in that directory
   --camera-source VALUE  Camera index/path, or auto (default: auto)
   --no-build             Skip colcon build for this start
   --record               Start video recording with the detector
@@ -42,6 +43,11 @@ while (($#)); do
         --model-id)
             (($# >= 2)) || fail "--model-id requires a value"
             MODEL_ID="$2"
+            shift 2
+            ;;
+        --model-file)
+            (($# >= 2)) || fail "--model-file requires a value"
+            MODEL_FILE="$2"
             shift 2
             ;;
         --camera-source)
@@ -77,7 +83,8 @@ done
 
 : "${ROS_DISTRO:=foxy}"
 : "${VENV_PATH:=${HOME}/venvs/yolo_ros2}"
-: "${MODEL_ID:=yolo26s_baseline_v2}"
+: "${MODEL_ID:=yolo26m_tabletop_v1}"
+: "${MODEL_FILE:=best.pt}"
 : "${CAMERA_SOURCE:=auto}"
 : "${CAMERA_BY_ID:=}"
 : "${CAMERA_WAIT_SECONDS:=30}"
@@ -107,7 +114,9 @@ fi
 ros_setup="/opt/ros/${ROS_DISTRO}/setup.bash"
 venv_activate="${VENV_PATH}/bin/activate"
 workspace="${project_root}/ros2_ws"
-model_path="${project_root}/weights/${MODEL_ID}/best.pt"
+[[ -n "${MODEL_FILE}" && "${MODEL_FILE}" != */* && "${MODEL_FILE}" != *\\* ]] \
+    || fail "MODEL_FILE must be a file name inside weights/${MODEL_ID}."
+model_path="${project_root}/weights/${MODEL_ID}/${MODEL_FILE}"
 output_dir="${project_root}/outputs/jetson"
 pid_file="${output_dir}/yolo_detector.pid"
 if [[ -z "${CAPTURE_OUTPUT_DIR}" ]]; then

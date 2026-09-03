@@ -712,7 +712,7 @@ def _parse_source(value: str) -> Union[int, Path]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Preview the trained keyboard/monitor/mouse detector using OpenCV DNN."
+            "Preview a trained YOLO detector using OpenCV DNN."
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )

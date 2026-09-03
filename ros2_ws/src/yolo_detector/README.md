@@ -24,7 +24,9 @@
 默认保存目录由 `capture_output_dir` 控制，录像帧率和编码分别由
 `recording_fps`、`recording_codec` 控制。
 
-类别顺序当前固定为训练数据的 `keyboard`、`monitor`、`mouse`，可在 [`config/detector.yaml`](config/detector.yaml) 中修改。
+类别名称优先从所加载模型的元数据读取，因此可自动适配旧三分类模型和当前
+11 分类模型。仅当模型不含类别元数据时，才使用
+[`config/detector.yaml`](config/detector.yaml) 中的 `class_names` 作为回退。
 
 ## 代码结构
 

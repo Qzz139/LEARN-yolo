@@ -8,7 +8,8 @@ YOLO 检测节点并发布：
 - `/yolo/fps`
 - `/yolo/annotated_image`
 
-默认模型是 `weights/yolo26s_baseline_v2/best.pt`。摄像头默认通过
+默认模型是刷新后 11 分类的 `weights/yolo26m_tabletop_v1/best.pt`。
+摄像头默认通过
 `/dev/v4l/by-id/` 下的稳定设备标识定位，不依赖会在拔插后变化的
 `/dev/video0` 编号。所有可调项都集中在 `jetson.env`，不需要修改 Python 文件。
 
@@ -57,11 +58,32 @@ chmod +x deploy/jetson/*.sh
 ./deploy/jetson/start_detector.sh --camera-source /dev/video1
 ```
 
-若要临时测试 YOLO26m：
+若要回退到旧三分类 YOLO26s 模型进行对照：
 
 ```bash
-./deploy/jetson/start_detector.sh --model-id yolo26m_baseline_v1
+./deploy/jetson/start_detector.sh --model-id yolo26s_baseline_v2
 ```
+
+## TensorRT FP16（在 Jetson 本机执行）
+
+先用 `best.pt` 完成环境检查和正确率冒烟测试。需要提高 FPS 时，再在目标 Jetson
+及其当前 JetPack/TensorRT 环境中生成 engine；不要从 Windows 或另一台设备复制：
+
+```bash
+source /opt/ros/foxy/setup.bash
+source ~/venvs/yolo_ros2/bin/activate
+yolo export \
+  model=weights/yolo26m_tabletop_v1/best.pt \
+  format=engine imgsz=640 half=True device=0
+./deploy/jetson/start_detector.sh \
+  --model-file best.engine --check-only
+./deploy/jetson/start_detector.sh \
+  --model-file best.engine --view
+```
+
+确认 engine 可运行后，可把 `jetson.env` 中的 `MODEL_FILE` 改为
+`best.engine`。JetPack、TensorRT、CUDA 或模型发生变化时，应删除旧 engine
+并在同一台 Jetson 上重新生成；保留 `best.pt` 作为可移植回退。
 
 ## 安装桌面快捷方式
 
