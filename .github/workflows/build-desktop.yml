@@ -1,0 +1,66 @@
+name: Build desktop packages
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "desktop-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.package }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            package: windows-x86_64
+          - os: macos-15
+            package: macos-arm64
+          - os: ubuntu-24.04
+            package: linux-x86_64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Download desktop ONNX models from Git LFS
+        shell: bash
+        run: |
+          git lfs install --local
+          git lfs pull --include="weights/**/*.onnx" --exclude=""
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: apps/local_preview/requirements-build.txt
+
+      - name: Install build dependencies
+        run: python -m pip install -r apps/local_preview/requirements-build.txt
+
+      - name: Run unit tests
+        run: python -m unittest discover -s apps/local_preview/tests -v
+
+      - name: Build and smoke-test native package
+        run: python apps/local_preview/package.py
+
+      - name: Upload package archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: yolo-preview-${{ matrix.package }}
+          path: release/yolo-preview-*.zip
+          if-no-files-found: ignore
+
+      - name: Upload Unix package archive
+        if: runner.os != 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: yolo-preview-${{ matrix.package }}-tar
+          path: release/yolo-preview-*.tar.gz
+          if-no-files-found: error

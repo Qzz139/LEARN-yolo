@@ -13,10 +13,13 @@ venv/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+*.cache
 
-# Generated training output
+# Generated training and application output
 runs/
 outputs/
+.build/
+release/
 
 # Recoverable local dataset backups
 datasets/archive/

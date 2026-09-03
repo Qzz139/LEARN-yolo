@@ -1,7 +1,5 @@
 #!/bin/zsh
 
-# macOS Finder/Terminal entry point. Shared Python discovery lives in run.sh.
-
 PREVIEW_DIR="$(cd "$(dirname "$0")" && pwd)"
 "$PREVIEW_DIR/run.sh" "$@"
 PREVIEW_STATUS=$?

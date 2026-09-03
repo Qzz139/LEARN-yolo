@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "active_model": "yolo26s_baseline_v2",
+  "classes": [
+    "keyboard",
+    "monitor",
+    "mouse"
+  ],
+  "input_size": 640,
+  "models": {
+    "yolo26n_baseline_v1": {
+      "family": "YOLO26n",
+      "status": "archived",
+      "input_size": 640,
+      "artifacts": {
+        "pt": "yolo26n_baseline_v1/best.pt",
+        "onnx": "yolo26n_baseline_v1/best.onnx"
+      },
+      "validation": {
+        "best_epoch": 38,
+        "map50": 0.85704,
+        "map50_95": 0.55143
+      }
+    },
+    "yolo26s_baseline_v2": {
+      "family": "YOLO26s",
+      "status": "active_candidate",
+      "input_size": 640,
+      "artifacts": {
+        "pt": "yolo26s_baseline_v2/best.pt",
+        "onnx": "yolo26s_baseline_v2/best.onnx"
+      },
+      "validation": {
+        "best_epoch": 64,
+        "map50": 0.94045,
+        "map50_95": 0.70211
+      }
+    },
+    "yolo26m_candidate": {
+      "family": "YOLO26m",
+      "status": "planned_training",
+      "input_size": 640,
+      "artifacts": {},
+      "notes": "Train and export before this candidate can be selected at runtime."
+    }
+  }
+}

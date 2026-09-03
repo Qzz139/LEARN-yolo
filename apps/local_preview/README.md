@@ -1,86 +1,113 @@
-# YOLO 本机预览应用
+# YOLO桌面预览程序
 
-独立运行训练后的 `best.onnx`，使用 OpenCV DNN 完成推理，不依赖 ROS、PyTorch、
-Ultralytics 或 onnxruntime。
+同一套 Python/ONNX 程序支持 Windows、macOS 和 Linux。源码模式需要
+Python、NumPy 和 OpenCV；PyInstaller 原生包不要求目标电脑安装 Python。
 
-## 目录结构
+## 源码启动
+
+在项目根目录执行：
 
 ```text
-apps/local_preview/
-├── main.py          # 图片、视频、摄像头与拍照逻辑
-├── run.command      # macOS 双击/终端启动器
-├── requirements.txt # 最小本机依赖
-└── README.md        # 本说明
+# Windows cmd或PowerShell
+apps\local_preview\run.cmd --source 0
+
+# macOS
+./apps/local_preview/run.command --source 0
+
+# Linux
+./apps/local_preview/run.sh --source 0
 ```
 
-模型仍统一保存在项目级目录：
-[`weights/yolo26n_baseline_v1/best.onnx`](../../weights/yolo26n_baseline_v1/best.onnx)。
-运行结果统一写入项目级 `outputs/local_preview/`，不会混入应用源码目录。
+若找不到依赖，在 `apps/local_preview` 创建独立环境：
 
-## 启动摄像头
+```text
+python -m venv .venv
 
-macOS 可以直接双击 `run.command`，也可以在项目根目录执行：
+# Windows
+.venv\Scripts\python.exe -m pip install -r requirements.txt
 
-```bash
-./apps/local_preview/run.command
+# macOS/Linux
+.venv/bin/python -m pip install -r requirements.txt
 ```
 
-首次启动时，需要允许 Terminal 或 Codex 使用摄像头。
+## 模型选择
+
+[`weights/manifest.json`](../../weights/manifest.json) 是唯一模型清单。目前：
+
+| ID | 模型 | 状态 |
+| --- | --- | --- |
+| `yolo26n_baseline_v1` | YOLO26n | 已归档，可运行 |
+| `yolo26s_baseline_v2` | YOLO26s | 当前默认候选，可运行 |
+| `yolo26m_candidate` | YOLO26m | 待训练，尚无ONNX模型 |
+
+```text
+# 查看模型
+apps\local_preview\run.cmd --list-models
+
+# 指定已导出的候选
+apps\local_preview\run.cmd --model-id yolo26n_baseline_v1 --source 0
+
+# 指定任意ONNX文件；其优先级最高
+apps\local_preview\run.cmd --model path\to\best.onnx --source 0
+```
+
+选择优先级为：
+
+```text
+--model
+YOLO_PREVIEW_MODEL
+--model-id
+YOLO_PREVIEW_MODEL_ID
+manifest.active_model
+```
+
+## 输入与输出
+
+```text
+# 图片
+apps\local_preview\run.cmd --source path\to\image.jpg --save
+
+# 视频
+apps\local_preview\run.cmd --source path\to\video.mp4 --save
+
+# 图片目录
+apps\local_preview\run.cmd --source path\to\images --no-show
+
+# 摄像头前100帧，无窗口
+apps\local_preview\run.cmd --source 0 --max-frames 100 --no-show
+```
 
 摄像头窗口快捷键：
 
-- `C`、回车、`S` 或鼠标左键：拍照；
-- 空格：暂停/继续；
-- `+`/`-`：调整置信度阈值；
+- `C`、回车、`S`或鼠标左键：保存原图和标注图；
+- 空格：暂停或继续；
+- `+`/`-`：调节置信度；
 - `Q`/`Esc`：退出。
 
-每次拍照会同时保存无检测框原图和带检测框图片：
+源码模式输出到项目 `outputs/local_preview/`。打包程序输出到当前用户目录下的
+`YOLOPreview/outputs/`。
+
+## 构建原生包
+
+PyInstaller不是跨平台编译器，每个操作系统必须在本系统构建。项目提供统一命令：
 
 ```text
-outputs/local_preview/photos/photo_时间_original.jpg
-outputs/local_preview/photos/photo_时间_detected.jpg
+python -m pip install -r apps/local_preview/requirements-build.txt
+python apps/local_preview/package.py
 ```
 
-## 图片、视频与批量检测
+构建程序会：
 
-以下命令从项目根目录执行：
+1. 生成one-folder原生程序；
+2. 附带模型清单和当前已有的ONNX模型；
+3. 执行模型清单及单图推理冒烟测试；
+4. 在 `release/` 生成ZIP或TAR.GZ归档。
 
-```bash
-# 检测一张图片并保存
-./apps/local_preview/run.command \
-  --source datasets/dataset/images/test/mouse_keyboard_001.jpg \
-  --save
+GitHub Actions工作流 `.github/workflows/build-desktop.yml` 会分别构建：
 
-# 检测视频并保存标注视频
-./apps/local_preview/run.command --source /absolute/path/input.mp4 --save
+- Windows x86-64；
+- macOS ARM64；
+- Linux x86-64。
 
-# 批量处理目录中的真实图片
-./apps/local_preview/run.command \
-  --source datasets/dataset/images/test \
-  --no-show
-
-# 无窗口验证
-./apps/local_preview/run.command \
-  --source datasets/dataset/images/test/keyboard_001.jpg \
-  --no-show --save
-```
-
-常用参数可通过下面的命令查看：
-
-```bash
-./apps/local_preview/run.command --help
-```
-
-## 独立环境
-
-当前电脑的启动器会自动找到已有的 OpenCV Python。如果换到其他电脑，可在应用目录
-创建隔离环境：
-
-```bash
-cd apps/local_preview
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
-./run.command
-```
-
-不要在 macOS 上安装项目根目录的 `requirements-lock.txt`；它记录的是 CUDA 训练环境。
+Jetson ARM64不使用这里的桌面Linux包；它使用ROS 2源码和在Jetson本机生成的
+TensorRT engine。

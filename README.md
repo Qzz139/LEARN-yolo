@@ -1,41 +1,73 @@
-# 【LEARN】yolo 
+# 【LEARN】YOLO
 
-个人大三夏季学期（8/26---9/26）课程内YOLO 学习项目。
+夏季学期目标检测课程项目：使用 Jetson Orin NX 和摄像头实时识别
+`keyboard`、`monitor`、`mouse`，显示检测框、类别和置信度，并通过 ROS 2
+发布结果。
 
-## （不完整）设备清单
+## 验收目标
 
-电脑
-jetson Orin NX dev 开发板
-USB-A 低清摄像头
-..
+- 同时识别不少于两类桌面物体；
+- 测试 20 个物体，正确识别率不低于 80%；
+- Jetson 端检测速度不低于 5 FPS；
+- 保存测试结果、典型错误案例和结果视频；
+- 提交数据集、模型、程序、运行说明和实验报告。
 
-## （不完整）知识点清单
+## 当前模型候选
 
-程序开发
-程序环境适配
-...
-PUA专业能力强于你的员工
-ROS2
-SSH远程控制
+模型清单保存在 [`weights/manifest.json`](weights/manifest.json)：
 
-## 本机查看模型效果
+- YOLO26n baseline v1：已归档；
+- YOLO26s baseline v2：当前默认候选；
+- YOLO26m：已加入候选，尚待训练和导出，当前不能运行。
 
-独立预览应用位于 [`apps/local_preview`](apps/local_preview)，使用训练后的 ONNX 模型
-完成摄像头、拍照、图片、视频及批量检测，不依赖 ROS 或 PyTorch。
+程序不会再通过 `runs/` 或文件时间猜测模型。显式 `--model` 路径优先，
+否则使用 `--model-id` 或清单中的 `active_model`。
 
-```bash
-./apps/local_preview/run.command
+## 桌面程序
+
+桌面程序使用 ONNX 和 OpenCV DNN，不依赖 ROS、PyTorch 或 Ultralytics。
+
+```text
+Windows: apps\local_preview\run.cmd --source 0
+macOS:   ./apps/local_preview/run.command --source 0
+Linux:   ./apps/local_preview/run.sh --source 0
 ```
 
-完整操作、快捷键及独立环境安装方式见
-[`apps/local_preview/README.md`](apps/local_preview/README.md)。
+查看模型候选：
 
-## ROS 2 检测程序
+```text
+apps\local_preview\run.cmd --list-models
+```
 
-ROS 2 Python 包位于 [`ros2_ws/src/yolo_detector`](ros2_ws/src/yolo_detector)。它支持订阅 ROS 图像话题或直接读取摄像头，并输出标准检测消息、标注图像和实时 FPS。
+使用指定模型：
 
-Jetson、ROS 2 发行版、摄像头来源和最终模型路径暂不写死，部署时通过参数配置。详细说明见 [`ros2_ws/src/yolo_detector/README.md`](ros2_ws/src/yolo_detector/README.md)。
+```text
+apps\local_preview\run.cmd --model-id yolo26s_baseline_v2 --source 0
+```
 
+完整说明见 [`apps/local_preview/README.md`](apps/local_preview/README.md)。
 
-#  以下为课业提交要求
-<img width="430" height="462" alt="image" src="https://github.com/user-attachments/assets/4b3c4d1c-1d89-4596-a287-e0139dbf3c88" />
+## ROS 2与Jetson
+
+ROS 2包位于 [`ros2_ws/src/yolo_detector`](ros2_ws/src/yolo_detector)，输出：
+
+- `/yolo/detections`
+- `/yolo/annotated_image`
+- `/yolo/fps`
+
+Jetson当前环境和兼容性注意事项见
+[`docs/jetson-environment.md`](docs/jetson-environment.md)，推荐的Git同步方式见
+[`docs/jetson-sync.md`](docs/jetson-sync.md)。
+
+## 数据与版本控制
+
+- 数据配置：[`datasets/dataset/data.yaml`](datasets/dataset/data.yaml)
+- 数据说明：[`datasets/dataset/README.md`](datasets/dataset/README.md)
+- 训练记录：[`record/`](record)
+- 正式模型：[`weights/`](weights)
+- 大型数据和模型文件由 Git LFS 管理；
+- `runs/`、`outputs/`、构建目录和可重建缓存不提交。
+
+## 课程原始要求
+
+<img width="430" height="462" alt="课程目标检测实验要求" src="https://github.com/user-attachments/assets/4b3c4d1c-1d89-4596-a287-e0139dbf3c88" />
