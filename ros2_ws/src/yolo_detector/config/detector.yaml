@@ -30,5 +30,7 @@ yolo_detector:
     conf_threshold: 0.25
     iou_threshold: 0.45
     device: ""  # Empty lets Ultralytics choose; e.g. "0", "cpu".
+    # Fallback only. Class names embedded in the selected model take precedence,
+    # so retrained models with a different class set require no ROS config edit.
     class_names: ["keyboard", "monitor", "mouse"]
     log_every_n_frames: 30

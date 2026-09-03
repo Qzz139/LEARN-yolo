@@ -143,7 +143,7 @@ class RosMessageTests(unittest.TestCase):
         self.assertEqual(detection.bbox.center.y, 40.0)
         self.assertEqual(detection.bbox.size_x, 20.0)
         self.assertEqual(detection.bbox.size_y, 40.0)
-        self.assertEqual(detection.results[0].id, "monitor")
+        self.assertEqual(detection.results[0].id, "model-name")
         self.assertAlmostEqual(detection.results[0].score, 0.8)
 
     def test_newer_hypothesis_schema_is_preserved(self):
@@ -162,8 +162,20 @@ class RosMessageTests(unittest.TestCase):
             ros_messages.ObjectHypothesisWithPose = original
 
         hypothesis = message.detections[0].results[0].hypothesis
-        self.assertEqual(hypothesis.class_id, "monitor")
+        self.assertEqual(hypothesis.class_id, "model-name")
         self.assertAlmostEqual(hypothesis.score, 0.8)
+
+    def test_configured_name_is_used_when_model_metadata_is_missing(self):
+        result = self.make_result()
+        result.names = {}
+
+        message = ros_messages.build_detections_message(
+            result, FakeHeader(), ["keyboard", "monitor", "mouse"]
+        )
+
+        hypothesis = message.detections[0]
+        self.assertEqual(hypothesis.results[0].id, "monitor")
+        self.assertAlmostEqual(hypothesis.results[0].score, 0.8)
 
     def test_bgr8_bridge_workaround_is_preserved(self):
         bridge = FakeBridge()

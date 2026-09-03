@@ -138,10 +138,12 @@ def _resolve_class_name(
     model_names: Mapping[int, str] | Sequence[str],
     class_names: Sequence[str],
 ) -> str:
-    if 0 <= class_id < len(class_names):
-        return str(class_names[class_id])
+    # Model metadata is authoritative and automatically follows retrained models.
     if isinstance(model_names, Mapping):
-        return str(model_names.get(class_id, class_id))
+        if class_id in model_names:
+            return str(model_names[class_id])
     if 0 <= class_id < len(model_names):
         return str(model_names[class_id])
+    if 0 <= class_id < len(class_names):
+        return str(class_names[class_id])
     return str(class_id)

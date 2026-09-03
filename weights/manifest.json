@@ -1,6 +1,6 @@
 {
-  "schema_version": 1,
-  "active_model": "yolo26s_baseline_v2",
+  "schema_version": 2,
+  "active_model": "yolo26m_tabletop_v1",
   "classes": [
     "keyboard",
     "monitor",
@@ -24,7 +24,7 @@
     },
     "yolo26s_baseline_v2": {
       "family": "YOLO26s",
-      "status": "active_candidate",
+      "status": "legacy_candidate",
       "input_size": 640,
       "artifacts": {
         "pt": "yolo26s_baseline_v2/best.pt",
@@ -38,7 +38,7 @@
     },
     "yolo26m_baseline_v1": {
       "family": "YOLO26m",
-      "status": "benchmark_candidate",
+      "status": "legacy_benchmark",
       "input_size": 640,
       "artifacts": {
         "pt": "yolo26m_baseline_v1/best.pt",
@@ -60,6 +60,45 @@
         "map50_95": 0.616
       },
       "notes": "Runnable PT and ONNX candidate; keep YOLO26s as default until Jetson camera A/B testing is complete."
+    },
+    "yolo26m_tabletop_v1": {
+      "family": "YOLO26m",
+      "status": "active_candidate",
+      "input_size": 640,
+      "classes": [
+        "book",
+        "bottle",
+        "earphone",
+        "glass",
+        "headphone",
+        "keyboard",
+        "laptop",
+        "mobile",
+        "mouse",
+        "pen",
+        "penstand"
+      ],
+      "dataset": "datasets/tabletop_v1/data.yaml",
+      "artifacts": {
+        "pt": "yolo26m_tabletop_v1/best.pt",
+        "onnx": "yolo26m_tabletop_v1/best.onnx"
+      },
+      "validation": {
+        "best_epoch": 80,
+        "precision": 0.802,
+        "recall": 0.761,
+        "map50": 0.806,
+        "map50_95": 0.633
+      },
+      "test": {
+        "images": 151,
+        "instances": 259,
+        "precision": 0.841,
+        "recall": 0.813,
+        "map50": 0.845,
+        "map50_95": 0.647
+      },
+      "notes": "Active 11-class candidate trained on the refreshed tabletop dataset; requires live Jetson FPS and camera acceptance testing."
     }
   }
 }

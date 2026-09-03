@@ -65,8 +65,14 @@ def _load_manifest(path: Optional[Path] = None) -> Tuple[Path, Dict[str, object]
     return manifest_path, data
 
 
-def _labels_from_manifest(data: Mapping[str, object]) -> Tuple[str, ...]:
-    raw_labels = data.get("classes", DEFAULT_LABELS)
+def _labels_from_manifest(
+    data: Mapping[str, object],
+    model: Optional[Mapping[str, object]] = None,
+) -> Tuple[str, ...]:
+    """Resolve model-specific labels, falling back to legacy global labels."""
+
+    raw_labels = model.get("classes") if model and "classes" in model else None
+    raw_labels = raw_labels if raw_labels is not None else data.get("classes", DEFAULT_LABELS)
     if not isinstance(raw_labels, list) or not raw_labels:
         raise ModelCatalogError("Model manifest 'classes' must be a non-empty list.")
     labels = tuple(str(label).strip() for label in raw_labels)
@@ -138,6 +144,7 @@ def resolve_model(
         raise ModelCatalogError(
             f"Unknown model ID '{selected_id}'. Available models: {available}"
         )
+    labels = _labels_from_manifest(data, entry)
 
     artifacts = entry.get("artifacts", {})
     artifact = artifacts.get("onnx") if isinstance(artifacts, dict) else None

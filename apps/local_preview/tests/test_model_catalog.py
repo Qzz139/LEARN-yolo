@@ -35,6 +35,11 @@ class ModelCatalogTests(unittest.TestCase):
                             "status": "planned_training",
                             "artifacts": {},
                         },
+                        "expanded": {
+                            "status": "active_candidate",
+                            "classes": ["book", "bottle", "keyboard"],
+                            "artifacts": {"onnx": "active.onnx"},
+                        },
                     },
                 }
             ),
@@ -49,6 +54,16 @@ class ModelCatalogTests(unittest.TestCase):
         self.assertEqual(selection.model_id, "small")
         self.assertEqual(selection.model_path, self.model_path.resolve())
         self.assertEqual(selection.labels, ("keyboard", "monitor", "mouse"))
+
+    def test_model_specific_classes_override_legacy_global_classes(self) -> None:
+        selection = resolve_model(
+            manifest_path=self.manifest_path,
+            explicit_model_id="expanded",
+        )
+
+        self.assertEqual(selection.model_id, "expanded")
+        self.assertEqual(selection.model_path, self.model_path.resolve())
+        self.assertEqual(selection.labels, ("book", "bottle", "keyboard"))
 
     def test_planned_model_cannot_run_without_artifact(self) -> None:
         with self.assertRaisesRegex(ModelCatalogError, "no ONNX artifact"):
