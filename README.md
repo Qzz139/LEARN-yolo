@@ -62,6 +62,16 @@ Jetson当前环境和兼容性注意事项见
 [`docs/jetson-environment.md`](docs/jetson-environment.md)，推荐的Git同步方式见
 [`docs/jetson-sync.md`](docs/jetson-sync.md)。
 
+Jetson 接入 USB 摄像头后，可在项目根目录一键启动：
+
+```bash
+./deploy/jetson/start_detector.sh
+```
+
+第一次运行和桌面快捷方式安装说明见
+[`deploy/jetson/README.md`](deploy/jetson/README.md)。运行参数集中在
+`deploy/jetson/jetson.env`，切换模型或摄像头时不需要修改 Python 文件。
+
 ## 数据与版本控制
 
 - 数据配置：[`datasets/dataset/data.yaml`](datasets/dataset/data.yaml)

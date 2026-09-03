@@ -4,7 +4,7 @@
 
 ## 数据流
 
-输入有两种模式：
+输入有三种模式：
 
 - `topic`（默认）：订阅 `/camera/image_raw`，类型为 `sensor_msgs/msg/Image`。
 - `camera`：通过 OpenCV 直接打开摄像头编号、视频地址或 GStreamer 管道。
@@ -51,6 +51,16 @@ Python 运行环境还需要 `ultralytics`。Jetson 上的 PyTorch、CUDA 和 Te
 
 ## 运行
 
+当前 Jetson 使用 USB 摄像头时，推荐直接使用仓库的一键启动脚本；脚本会加载
+Foxy 和项目虚拟环境、检查 `/dev/video0`、构建包并处理 JetPack 5 所需的
+`LD_PRELOAD`：
+
+```bash
+./deploy/jetson/start_detector.sh
+```
+
+下面保留原始 ROS 2 命令，适合调试节点或使用其他输入模式。
+
 订阅已有 ROS 相机话题：
 
 ```bash
@@ -95,7 +105,7 @@ ros2 launch yolo_detector yolo_detector.launch.py
 ## 验证输出
 
 ```bash
-ros2 topic echo /yolo/detections --once
+timeout -s INT 5s ros2 topic echo /yolo/detections
 ros2 topic hz /yolo/detections
 ros2 topic echo /yolo/fps
 ```
