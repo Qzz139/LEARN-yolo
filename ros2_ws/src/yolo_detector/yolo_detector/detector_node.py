@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Optional, Sequence
 
 import cv2
 import rclpy
@@ -14,9 +14,14 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32, Header
 from std_srvs.srv import SetBool, Trigger
-from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
 
+from .camera_stream import RecoveringCamera
 from .media_capture import MediaCapture
+from .ros_messages import (
+    bgr8_image_message,
+    build_detections_message,
+    image_message_to_bgr,
+)
 
 
 class YoloDetectorNode(Node):
@@ -75,7 +80,7 @@ class YoloDetectorNode(Node):
             SetBool, "/yolo/set_recording", self._set_recording
         )
 
-        self._capture: Optional[cv2.VideoCapture] = None
+        self._camera_stream: Optional[RecoveringCamera] = None
         self._input_timer = None
         self._static_frame = None
         self._image_subscription = None
@@ -166,100 +171,31 @@ class YoloDetectorNode(Node):
         self.get_logger().info(f"Subscribing to image topic: {image_topic}")
 
     def _start_camera_input(self) -> None:
-        self._camera_source_text = str(
-            self.get_parameter("camera_source").value
-        ).strip()
-        self._camera_backend = str(
-            self.get_parameter("camera_backend").value
-        ).lower()
-        self._camera_source: Any = (
-            int(self._camera_source_text)
-            if self._camera_source_text.lstrip("-").isdigit()
-            else self._camera_source_text
-        )
-        if self._camera_backend not in {"auto", "gstreamer"}:
-            raise ValueError(
-                "Parameter 'camera_backend' must be 'auto' or 'gstreamer', "
-                f"but received {self._camera_backend!r}."
-            )
-
-        self._camera_reconnect_interval = float(
-            self.get_parameter("camera_reconnect_interval").value
-        )
-        self._camera_read_failure_threshold = int(
-            self.get_parameter("camera_read_failure_threshold").value
-        )
-        if self._camera_reconnect_interval <= 0.0:
-            raise ValueError(
-                "Parameter 'camera_reconnect_interval' must be greater than zero."
-            )
-        if self._camera_read_failure_threshold <= 0:
-            raise ValueError(
-                "Parameter 'camera_read_failure_threshold' must be greater than zero."
-            )
-
         requested_fps = float(self.get_parameter("camera_fps").value)
         if requested_fps <= 0.0:
             raise ValueError("Parameter 'camera_fps' must be greater than zero.")
 
-        self._camera_read_failures = 0
-        self._last_camera_reconnect_attempt = 0.0
-        self._connect_camera(initial=True)
+        source = str(self.get_parameter("camera_source").value)
+        reconnect_interval = float(
+            self.get_parameter("camera_reconnect_interval").value
+        )
+        self._camera_stream = RecoveringCamera(
+            source_text=source,
+            backend=str(self.get_parameter("camera_backend").value).lower(),
+            reconnect_interval=reconnect_interval,
+            read_failure_threshold=int(
+                self.get_parameter("camera_read_failure_threshold").value
+            ),
+            cv2_module=cv2,
+            logger=self.get_logger(),
+        )
         self._input_timer = self.create_timer(
             1.0 / requested_fps, self._camera_callback
         )
         self.get_logger().info(
-            f"Reading camera source {self._camera_source_text!r} at up to "
-            f"{requested_fps:.1f} FPS; reconnect interval="
-            f"{self._camera_reconnect_interval:.1f}s"
+            f"Reading camera source {source!r} at up to {requested_fps:.1f} "
+            f"FPS; reconnect interval={reconnect_interval:.1f}s"
         )
-
-    def _create_camera_capture(self) -> cv2.VideoCapture:
-        if self._camera_backend == "gstreamer":
-            return cv2.VideoCapture(self._camera_source, cv2.CAP_GSTREAMER)
-        return cv2.VideoCapture(self._camera_source)
-
-    def _connect_camera(self, initial: bool = False) -> bool:
-        attempted_at = time.monotonic()
-        if (
-            not initial
-            and attempted_at - self._last_camera_reconnect_attempt
-            < self._camera_reconnect_interval
-        ):
-            return False
-        self._last_camera_reconnect_attempt = attempted_at
-
-        try:
-            capture = self._create_camera_capture()
-        except Exception as exc:
-            self._capture = None
-            self.get_logger().warning(
-                f"Camera {self._camera_source_text!r} could not be opened: "
-                f"{exc}; retrying in {self._camera_reconnect_interval:.1f}s."
-            )
-            return False
-
-        if not capture.isOpened():
-            capture.release()
-            self._capture = None
-            self.get_logger().warning(
-                f"Camera {self._camera_source_text!r} is unavailable; "
-                f"retrying in {self._camera_reconnect_interval:.1f}s."
-            )
-            return False
-
-        self._capture = capture
-        self._camera_read_failures = 0
-        if initial:
-            self.get_logger().info(
-                f"Opened camera source {self._camera_source_text!r}."
-            )
-        else:
-            self.get_logger().info(
-                f"Camera {self._camera_source_text!r} reconnected."
-            )
-        return True
-
     def _start_image_input(self) -> None:
         image_source = Path(
             str(self.get_parameter("image_source").value).strip()
@@ -288,39 +224,18 @@ class YoloDetectorNode(Node):
 
     def _image_callback(self, image_message: Image) -> None:
         try:
-            frame = self._image_message_to_bgr(image_message)
+            frame = image_message_to_bgr(self._bridge, image_message)
             self._process_frame(frame, image_message.header)
         except Exception as exc:  # Keep the ROS node alive after a bad frame.
             self.get_logger().error(f"Failed to process ROS image: {exc}")
 
     def _camera_callback(self) -> None:
-        if self._capture is None:
-            self._connect_camera()
+        if self._camera_stream is None:
+            return
+        frame = self._camera_stream.read()
+        if frame is None:
             return
 
-        try:
-            ok, frame = self._capture.read()
-        except Exception as exc:
-            ok, frame = False, None
-            self.get_logger().warning(f"Camera read raised an error: {exc}")
-
-        if not ok or frame is None:
-            self._camera_read_failures += 1
-            if (
-                self._camera_read_failures
-                >= self._camera_read_failure_threshold
-            ):
-                self.get_logger().warning(
-                    "Camera stream was lost; closing it and starting "
-                    "automatic reconnect attempts."
-                )
-                self._capture.release()
-                self._capture = None
-                self._camera_read_failures = 0
-                self._last_camera_reconnect_attempt = time.monotonic()
-            return
-
-        self._camera_read_failures = 0
         header = Header()
         header.stamp = self.get_clock().now().to_msg()
         header.frame_id = str(self.get_parameter("camera_frame_id").value)
@@ -343,48 +258,6 @@ class YoloDetectorNode(Node):
         except Exception as exc:  # Keep the ROS node alive after a bad frame.
             self.get_logger().error(f"Failed to process static image: {exc}")
 
-    def _image_message_to_bgr(self, image_message: Image) -> Any:
-        """Convert common ROS image encodings without OpenCV 4/5 ABI mixing."""
-
-        frame = self._bridge.imgmsg_to_cv2(
-            image_message, desired_encoding="passthrough"
-        )
-        encoding = image_message.encoding.lower()
-
-        if encoding in {"bgr8", "8uc3"}:
-            return frame
-        if encoding == "rgb8":
-            return cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        if encoding in {"mono8", "8uc1"}:
-            return cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
-        if encoding == "bgra8":
-            return cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
-        if encoding == "rgba8":
-            return cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
-
-        raise ValueError(
-            f"Unsupported ROS image encoding {image_message.encoding!r}; "
-            "expected bgr8, rgb8, mono8, bgra8, or rgba8."
-        )
-
-    def _bgr8_image_message(self, frame: Any, header: Header) -> Image:
-        """Create bgr8 safely when Foxy cv_bridge meets OpenCV 5.
-
-        Foxy cv_bridge validates explicit encodings using OpenCV 4 numeric type
-        IDs. OpenCV 5 changed those IDs. The passthrough conversion serializes
-        the same uint8 BGR bytes without that obsolete numeric-ID comparison.
-        """
-
-        message = self._bridge.cv2_to_imgmsg(frame, encoding="passthrough")
-        if message.encoding != "8UC3":
-            raise ValueError(
-                "Annotated frame must be an 8-bit, three-channel BGR image, "
-                f"but cv_bridge reported {message.encoding!r}."
-            )
-        message.encoding = "bgr8"
-        message.header = header
-        return message
-
     def _process_frame(self, frame: Any, header: Header) -> None:
         predict_options = {
             "source": frame,
@@ -399,7 +272,9 @@ class YoloDetectorNode(Node):
 
         result = self._model.predict(**predict_options)[0]
 
-        detections_message = self._build_detections_message(result, header)
+        detections_message = build_detections_message(
+            result, header, self._class_names
+        )
         self._detections_publisher.publish(detections_message)
 
         needs_annotated_frame = (
@@ -422,8 +297,8 @@ class YoloDetectorNode(Node):
                 self.get_logger().error(f"Video recording failed: {exc}")
 
             if self._annotated_publisher is not None:
-                annotated_message = self._bgr8_image_message(
-                    annotated_frame, header
+                annotated_message = bgr8_image_message(
+                    self._bridge, annotated_frame, header
                 )
                 self._annotated_publisher.publish(annotated_message)
 
@@ -467,100 +342,6 @@ class YoloDetectorNode(Node):
             self.get_logger().info(response.message)
         return response
 
-    def _build_detections_message(
-        self, result: Any, header: Header
-    ) -> Detection2DArray:
-        output = Detection2DArray()
-        output.header = header
-
-        boxes = result.boxes
-        if boxes is None or len(boxes) == 0:
-            return output
-
-        coordinates = boxes.xyxy.detach().cpu().tolist()
-        confidences = boxes.conf.detach().cpu().tolist()
-        class_ids = boxes.cls.detach().cpu().tolist()
-        model_names = result.names
-
-        for xyxy, confidence, class_id_value in zip(
-            coordinates, confidences, class_ids
-        ):
-            x_min, y_min, x_max, y_max = (float(value) for value in xyxy)
-            class_id = int(class_id_value)
-
-            detection = Detection2D()
-            detection.header = header
-            self._set_bbox(
-                detection,
-                center_x=(x_min + x_max) / 2.0,
-                center_y=(y_min + y_max) / 2.0,
-                width=max(0.0, x_max - x_min),
-                height=max(0.0, y_max - y_min),
-            )
-
-            hypothesis = ObjectHypothesisWithPose()
-            self._set_hypothesis(
-                hypothesis,
-                class_name=self._resolve_class_name(class_id, model_names),
-                confidence=float(confidence),
-            )
-            detection.results.append(hypothesis)
-            output.detections.append(detection)
-
-        return output
-
-    @staticmethod
-    def _set_bbox(
-        detection: Detection2D,
-        center_x: float,
-        center_y: float,
-        width: float,
-        height: float,
-    ) -> None:
-        """Fill BoundingBox2D on both ROS 2 Humble and Jazzy schemas."""
-
-        center = detection.bbox.center
-        if hasattr(center, "position"):
-            center.position.x = center_x
-            center.position.y = center_y
-        else:
-            center.x = center_x
-            center.y = center_y
-        center.theta = 0.0
-        detection.bbox.size_x = width
-        detection.bbox.size_y = height
-
-    @staticmethod
-    def _set_hypothesis(
-        hypothesis: ObjectHypothesisWithPose,
-        class_name: str,
-        confidence: float,
-    ) -> None:
-        """Fill both Foxy and newer vision_msgs hypothesis schemas."""
-
-        if hasattr(hypothesis, "hypothesis"):
-            hypothesis.hypothesis.class_id = class_name
-            hypothesis.hypothesis.score = confidence
-            return
-        if hasattr(hypothesis, "id") and hasattr(hypothesis, "score"):
-            hypothesis.id = class_name
-            hypothesis.score = confidence
-            return
-        raise TypeError("Unsupported vision_msgs ObjectHypothesisWithPose schema")
-
-    def _resolve_class_name(
-        self,
-        class_id: int,
-        model_names: Mapping[int, str] | Sequence[str],
-    ) -> str:
-        if 0 <= class_id < len(self._class_names):
-            return str(self._class_names[class_id])
-        if isinstance(model_names, Mapping):
-            return str(model_names.get(class_id, class_id))
-        if 0 <= class_id < len(model_names):
-            return str(model_names[class_id])
-        return str(class_id)
-
     def _publish_measured_fps(self) -> None:
         completed_at = time.perf_counter()
         if self._last_completed_at is None:
@@ -594,9 +375,9 @@ class YoloDetectorNode(Node):
         if recording_path is not None:
             self.get_logger().info(f"Recording saved: {recording_path}")
         self._media_capture.close()
-        if self._capture is not None:
-            self._capture.release()
-            self._capture = None
+        if self._camera_stream is not None:
+            self._camera_stream.close()
+            self._camera_stream = None
         return super().destroy_node()
 
 

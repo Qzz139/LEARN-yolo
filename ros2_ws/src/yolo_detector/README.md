@@ -26,6 +26,12 @@
 
 类别顺序当前固定为训练数据的 `keyboard`、`monitor`、`mouse`，可在 [`config/detector.yaml`](config/detector.yaml) 中修改。
 
+## 代码结构
+
+- `detector_node.py`：ROS 节点编排、YOLO 推理、话题和服务；
+- `camera_stream.py`：摄像头打开、读帧、断流检测和自动重连；
+- `ros_messages.py`：图像转换、检测消息构造和 Foxy/新版消息兼容；
+- `media_capture.py`：JPEG 拍照与 MP4 录像。
 ## 尚待部署时填写的配置
 
 打开 [`config/detector.yaml`](config/detector.yaml)，至少填写：
