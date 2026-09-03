@@ -63,9 +63,9 @@ chmod +x deploy/jetson/*.sh
 ./deploy/jetson/install_desktop.sh
 ```
 
-此后可以双击 `LEARN-YOLO` 启动。Ubuntu 首次双击若提示不受信任，右键
-快捷方式并选择“允许启动”。要自动打开检测画面，把 `jetson.env` 中的
-`OPEN_VIEWER=false` 改成 `OPEN_VIEWER=true`。
+此后可以双击 `LEARN-YOLO` 启动，桌面快捷方式默认同时打开检测画面。
+Ubuntu 首次双击若提示不受信任，右键快捷方式并选择“允许启动”。直接在
+终端运行 `start_detector.sh` 时仍默认不打开窗口；需要窗口时添加 `--view`。
 
 运行日志保存在 `outputs/jetson/`，该目录不会提交到 Git。照片和录像也属于
 运行产物，不会自动提交到 Git；需要留档时再有选择地复制到正式成果目录。

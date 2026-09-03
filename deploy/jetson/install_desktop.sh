@@ -15,7 +15,7 @@ printf '%s\n' \
     'Type=Application' \
     'Name=LEARN YOLO Detector' \
     'Comment=Start YOLO USB camera detection and ROS 2 output' \
-    "Exec=${start_script}" \
+    "Exec=${start_script} --view" \
     'Icon=camera-video' \
     'Terminal=true' \
     'Categories=Development;Robotics;' \
