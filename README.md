@@ -1,5 +1,10 @@
 # 【LEARN】YOLO
 
+> **Code-only branch:** this branch intentionally omits `datasets/` so the
+> source and deployment files can be browsed without dataset contents. Use
+> `main` for the complete project, or provide a compatible dataset locally at
+> the paths documented below before auditing or retraining.
+
 夏季学期目标检测课程项目：使用 Jetson Orin NX 和摄像头实时识别
 桌面物体，显示检测框、类别和置信度，并通过 ROS 2 发布结果。当前刷新后的
 数据集和默认模型覆盖 `book`、`bottle`、`earphone`、`glass`、`headphone`、

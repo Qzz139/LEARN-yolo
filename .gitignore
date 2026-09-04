@@ -21,6 +21,9 @@ outputs/
 .build/
 release/
 
+# This branch intentionally excludes dataset contents.
+datasets/
+
 # Recoverable local dataset backups
 datasets/archive/
 
