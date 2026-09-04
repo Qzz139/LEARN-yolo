@@ -18,6 +18,7 @@ venv/
 # Generated training and application output
 runs/
 outputs/
+docs/output/
 .build/
 release/
 
