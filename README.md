@@ -1,3 +1,5 @@
+**English** | [简体中文](README_cn.md)
+
 # 【LEARN】YOLO
 
 > **Code-only branch:** this branch intentionally omits `datasets/` so the
@@ -5,39 +7,45 @@
 > `main` for the complete project, or provide a compatible dataset locally at
 > the paths documented below before auditing or retraining.
 
-夏季学期目标检测课程项目：使用 Jetson Orin NX 和摄像头实时识别
-桌面物体，显示检测框、类别和置信度，并通过 ROS 2 发布结果。当前刷新后的
-数据集和默认模型覆盖 `book`、`bottle`、`earphone`、`glass`、`headphone`、
-`keyboard`、`laptop`、`mobile`、`mouse`、`pen`、`penstand` 共 11 类。
+A summer-term object detection course project using a Jetson Orin NX and a
+camera to detect tabletop objects in real time, display bounding boxes, class
+labels, and confidence scores, and publish results through ROS 2. The refreshed
+dataset and default model cover 11 classes: `book`, `bottle`, `earphone`, `glass`,
+`headphone`, `keyboard`, `laptop`, `mobile`, `mouse`, `pen`, and `penstand`.
 
-## 验收目标
+## Acceptance Criteria
 
-- 同时识别不少于两类桌面物体；
-- 测试 20 个物体，正确识别率不低于 80%；
-- Jetson 端检测速度不低于 5 FPS；
-- 保存测试结果、典型错误案例和结果视频；
-- 提交数据集、模型、程序、运行说明和实验报告。
+- Detect at least two classes of tabletop objects simultaneously.
+- Test 20 objects and achieve a correct recognition rate of at least 80%.
+- Achieve a detection speed of at least 5 FPS on the Jetson.
+- Save test results, representative failure cases, and result videos.
+- Submit the dataset, models, code, running instructions, and lab report.
 
-## 当前模型候选
+## Current Model Candidates
 
-模型清单保存在 [`weights/manifest.json`](weights/manifest.json)：
+The model manifest is stored in [`weights/manifest.json`](weights/manifest.json):
 
-- YOLO26n baseline v1：已归档；
-- YOLO26s baseline v2：旧三分类候选，可回退运行；
-- YOLO26m baseline v1：旧三分类性能对比模型；
-- YOLO26m tabletop v1：刷新后 11 分类数据集的当前默认候选。
+- YOLO26n baseline v1: archived.
+- YOLO26s baseline v2: a legacy three-class candidate available as a fallback.
+- YOLO26m baseline v1: a legacy three-class model for performance comparison.
+- YOLO26m tabletop v1: the current default candidate for the refreshed 11-class dataset.
 
-新模型完整训练 100 轮，在独立测试集上取得 mAP50 `0.845`、mAP50-95
-`0.647`。由于新旧模型的类别集合和数据集不同，指标不能直接横向比较；
-Jetson 接入真实摄像头后仍需完成不少于 20 个实物的正确率和 FPS 验收。
+The new model completed 100 training epochs and achieved mAP50 `0.845` and
+mAP50-95 `0.647` on a separate test set. These metrics cannot be directly compared
+with those of the older models because their class sets and datasets differ.
+Recognition accuracy and FPS still need to be validated on at least 20 physical
+objects after connecting a camera to the Jetson.
 
-程序不会再通过 `runs/` 或文件时间猜测模型。显式 `--model` 路径优先，
-否则使用 `--model-id` 或清单中的 `active_model`。每个模型可在清单中携带
-自己的类别列表，因此旧三分类模型和新 11 分类模型都能正确显示标签。
+The application no longer guesses which model to use from `runs/` or file
+timestamps. An explicit `--model` path takes priority; otherwise, it uses
+`--model-id` or the manifest's `active_model`. Each model can have its own class
+list in the manifest, so both the legacy three-class models and the new 11-class
+model display the correct labels.
 
-## 桌面程序
+## Desktop Application
 
-桌面程序使用 ONNX 和 OpenCV DNN，不依赖 ROS、PyTorch 或 Ultralytics。
+The desktop application uses ONNX and OpenCV DNN and does not require ROS,
+PyTorch, or Ultralytics.
 
 ```text
 Windows: apps\local_preview\run.cmd --source 0
@@ -45,56 +53,59 @@ macOS:   ./apps/local_preview/run.command --source 0
 Linux:   ./apps/local_preview/run.sh --source 0
 ```
 
-查看模型候选：
+List model candidates:
 
 ```text
 apps\local_preview\run.cmd --list-models
 ```
 
-使用指定模型：
+Run with a specific model:
 
 ```text
 apps\local_preview\run.cmd --model-id yolo26m_tabletop_v1 --source 0
 ```
 
-完整说明见 [`apps/local_preview/README.md`](apps/local_preview/README.md)。
+See [`apps/local_preview/README.md`](apps/local_preview/README.md) for full instructions.
 
-## ROS 2与Jetson
+## ROS 2 and Jetson
 
-ROS 2包位于 [`ros2_ws/src/yolo_detector`](ros2_ws/src/yolo_detector)，输出：
+The ROS 2 package is located at
+[`ros2_ws/src/yolo_detector`](ros2_ws/src/yolo_detector) and publishes:
 
 - `/yolo/detections`
 - `/yolo/annotated_image`
 - `/yolo/fps`
 
-Jetson当前环境和兼容性注意事项见
-[`docs/jetson-environment.md`](docs/jetson-environment.md)，推荐的Git同步方式见
-[`docs/jetson-sync.md`](docs/jetson-sync.md)。
+See [`docs/jetson-environment.md`](docs/jetson-environment.md) for the current
+Jetson environment and compatibility notes, and
+[`docs/jetson-sync.md`](docs/jetson-sync.md) for the recommended Git sync workflow.
 
-Jetson 接入 USB 摄像头后，可在项目根目录一键启动：
+After connecting a USB camera to the Jetson, launch the detector from the project root:
 
 ```bash
 ./deploy/jetson/start_detector.sh
 ```
 
-第一次运行和桌面快捷方式安装说明见
-[`deploy/jetson/README.md`](deploy/jetson/README.md)。运行参数集中在
-`deploy/jetson/jetson.env`，切换模型或摄像头时不需要修改 Python 文件。
+See [`deploy/jetson/README.md`](deploy/jetson/README.md) for first-run instructions
+and desktop shortcut installation. Runtime settings are centralized in
+`deploy/jetson/jetson.env`, so switching models or cameras does not require
+editing Python files.
 
-## 数据与版本控制
+## Data and Version Control
 
-- 当前数据配置：[`datasets/tabletop_v1/data.yaml`](datasets/tabletop_v1/data.yaml)
-- 当前数据说明：[`datasets/tabletop_v1/README.md`](datasets/tabletop_v1/README.md)
-- 数据审计：`python tools/audit_yolo_dataset.py datasets/tabletop_v1/data.yaml`
-- 复现训练：`python tools/train_yolo26m.py`
-- 模型与测试证据：[`weights/yolo26m_tabletop_v1/`](weights/yolo26m_tabletop_v1)
-- 旧数据集、旧模型和训练记录保留用于回退与对照；
-- 大型数据和模型文件由 Git LFS 管理；
-- `runs/`、`outputs/`、构建目录和可重建缓存不提交。
+- Current dataset configuration: [`datasets/tabletop_v1/data.yaml`](datasets/tabletop_v1/data.yaml)
+- Current dataset documentation: [`datasets/tabletop_v1/README.md`](datasets/tabletop_v1/README.md)
+- Audit the dataset: `python tools/audit_yolo_dataset.py datasets/tabletop_v1/data.yaml`
+- Reproduce training: `python tools/train_yolo26m.py`
+- Model and test evidence: [`weights/yolo26m_tabletop_v1/`](weights/yolo26m_tabletop_v1)
+- Older datasets, models, and training records are retained for fallback and comparison.
+- Large data and model files are managed with Git LFS.
+- `runs/`, `outputs/`, build directories, and regenerable caches are not committed.
 
-当前数据集不包含 `monitor`，因此新模型不会检测显示器。若课程最终仍要求
-该类别，需要补充显示器图片和标签后，以 12 类配置重新训练。
+The current dataset does not include `monitor`, so the new model does not detect
+monitors. If this class is required for the final course submission, add monitor
+images and labels and retrain with a 12-class configuration.
 
-## 课程原始要求
+## Original Course Requirements
 
-<img width="430" height="462" alt="课程目标检测实验要求" src="https://github.com/user-attachments/assets/4b3c4d1c-1d89-4596-a287-e0139dbf3c88" />
+<img width="430" height="462" alt="Course object detection lab requirements" src="https://github.com/user-attachments/assets/4b3c4d1c-1d89-4596-a287-e0139dbf3c88" />
