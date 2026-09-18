@@ -1,3 +1,4 @@
+# ROS 2 主节点：统一接入话题、相机或静态图片，发布检测结果并提供拍照录像服务。
 """ROS 2 node that runs Ultralytics YOLO on camera images."""
 
 from __future__ import annotations
@@ -91,6 +92,7 @@ class YoloDetectorNode(Node):
         self._static_frame = None
         self._image_subscription = None
 
+        # 三种输入模式共用 _process_frame，保证推理与发布流程一致。
         source_mode = str(self.get_parameter("source_mode").value).lower()
         if source_mode == "topic":
             self._start_topic_input()
@@ -156,6 +158,7 @@ class YoloDetectorNode(Node):
         if not model_path.is_file():
             raise FileNotFoundError(f"YOLO model was not found: {model_path}")
 
+        # 延迟导入模型依赖，使导入失败能转换为包含原因的运行时错误。
         try:
             from ultralytics import YOLO
         except ImportError as exc:
@@ -232,6 +235,7 @@ class YoloDetectorNode(Node):
     def _image_callback(self, image_message: Image) -> None:
         try:
             frame = image_message_to_bgr(self._bridge, image_message)
+            # 话题输入沿用原图时间戳和坐标系，便于下游关联检测结果。
             self._process_frame(frame, image_message.header)
         except Exception as exc:  # Keep the ROS node alive after a bad frame.
             self.get_logger().error(f"Failed to process ROS image: {exc}")
@@ -261,6 +265,7 @@ class YoloDetectorNode(Node):
         header.frame_id = str(self.get_parameter("camera_frame_id").value)
 
         try:
+            # 每次复制静态帧，避免处理过程中的原地操作污染下一轮输入。
             self._process_frame(self._static_frame.copy(), header)
         except Exception as exc:  # Keep the ROS node alive after a bad frame.
             self.get_logger().error(f"Failed to process static image: {exc}")
@@ -284,6 +289,7 @@ class YoloDetectorNode(Node):
         )
         self._detections_publisher.publish(detections_message)
 
+        # 仅当发布标注图、录制或显示需要时绘制；快照缓存也依赖这条路径更新。
         needs_annotated_frame = (
             self._annotated_publisher is not None
             or self._media_capture.recording_requested
@@ -340,6 +346,7 @@ class YoloDetectorNode(Node):
     def _set_recording(
         self, request: SetBool.Request, response: SetBool.Response
     ) -> SetBool.Response:
+        # 开始录像只设置请求标志，实际写入器等下一帧提供尺寸后再打开。
         if request.data:
             if self._media_capture.recording_requested:
                 response.success = True
@@ -371,6 +378,7 @@ class YoloDetectorNode(Node):
         if frame_interval <= 0.0:
             return
 
+        # 统计相邻处理完成时刻的间隔，包含输入等待，并用指数平滑减小帧率抖动。
         instantaneous_fps = 1.0 / frame_interval
         if self._fps_ema is None:
             self._fps_ema = instantaneous_fps

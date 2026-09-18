@@ -1,3 +1,4 @@
+# ROS Python 包安装配置：注册包资源、安装启动配置并暴露 ros2 run 命令。
 from glob import glob
 from setuptools import find_packages, setup
 
@@ -9,6 +10,7 @@ setup(
     name=package_name,
     version="0.1.0",
     packages=find_packages(exclude=("test",)),
+    # 将资源索引和配置安装到 share，使 ament 和 ros2 launch 能找到包。
     data_files=[
         ("share/ament_index/resource_index/packages", [f"resource/{package_name}"]),
         (f"share/{package_name}", ["package.xml"]),
@@ -21,6 +23,7 @@ setup(
     maintainer_email="182426073+Qzz139@users.noreply.github.com",
     description="Ultralytics YOLO detector node for ROS 2 camera streams.",
     license="Apache-2.0",
+    # 命令行入口映射到 detector_node.main，由 setuptools 生成启动脚本。
     entry_points={
         "console_scripts": [
             "yolo_detector_node = yolo_detector.detector_node:main",

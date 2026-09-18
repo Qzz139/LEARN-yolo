@@ -1,3 +1,4 @@
+# 窗口测试：记录模拟 OpenCV 调用，验证禁用显示、单次建窗和用户退出。
 """Unit tests for the optional OpenCV detector window."""
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from yolo_detector.opencv_view import OpenCvViewer
 
 
+# 模拟键盘及可见性状态，测试不创建真实 GUI 窗口。
 class FakeCv2:
     WINDOW_NORMAL = 0
     WND_PROP_VISIBLE = 1

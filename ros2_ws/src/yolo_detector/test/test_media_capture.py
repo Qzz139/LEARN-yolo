@@ -1,3 +1,4 @@
+# 媒体保存测试：用假图像与写入器验证快照前置条件和录像生命周期。
 """Unit tests for annotated snapshot and recording state."""
 
 from __future__ import annotations
@@ -61,6 +62,7 @@ class FakeCv2:
 
 class MediaCaptureTests(unittest.TestCase):
     def setUp(self):
+        # 输出放在临时目录，tearDown 释放录制资源并清理文件。
         self.temp_dir = tempfile.TemporaryDirectory()
         self.output_dir = Path(self.temp_dir.name)
         self.cv2 = FakeCv2()

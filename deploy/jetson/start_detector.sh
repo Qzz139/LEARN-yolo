@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Jetson 启动流程：加载配置、检查环境和相机、按需构建，再运行 ROS 2 检测节点。
 set -Eeuo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -37,6 +38,7 @@ EOF
 # shellcheck disable=SC1090
 source "${config_file}"
 
+# 先加载配置，再用命令行参数覆盖，最后为尚未设置的项目补默认值。
 check_only=false
 while (($#)); do
     case "$1" in
@@ -136,6 +138,7 @@ if [[ ! "${CAMERA_WAIT_SECONDS}" =~ ^[0-9]+$ ]]; then
     fail "CAMERA_WAIT_SECONDS must be a non-negative integer."
 fi
 
+# 自动模式优先采用指定的稳定设备 ID，再扫描可读的视频设备。
 resolve_camera_device() {
     if [[ "${CAMERA_SOURCE}" != "auto" ]]; then
         if [[ "${CAMERA_SOURCE}" =~ ^[0-9]+$ ]]; then
@@ -163,6 +166,7 @@ resolve_camera_device() {
     return 1
 }
 
+# 等待 USB 枚举完成；超时后退出，避免启动一个没有输入的检测进程。
 camera_device=""
 camera_deadline=$((SECONDS + CAMERA_WAIT_SECONDS))
 while true; do
@@ -209,6 +213,7 @@ from ultralytics import YOLO
 print(f"Runtime imports: PASS (OpenCV {cv2.__version__})")
 PY
 
+# 通过读取真实帧检查设备，而不只检查设备文件是否存在。
 camera_probe="${camera_device}"
 python3 - "${camera_probe}" <<'PY' || fail "Cannot read a frame from USB camera ${camera_device}."
 import sys
@@ -271,6 +276,7 @@ timestamp="$(date +%Y%m%d-%H%M%S)"
 log_file="${output_dir}/detector-${timestamp}.log"
 detector_pid=""
 
+# 收到中断或退出时向子进程发送 SIGINT，并仅删除属于本次启动的 PID 文件。
 cleanup() {
     status=$?
     trap - INT TERM EXIT
@@ -286,6 +292,7 @@ cleanup() {
 }
 trap cleanup INT TERM EXIT
 
+# 使用 Bash 数组保持每个 ROS 参数完整，路径含空格时也不会被拆分。
 run_args=(
     --ros-args
     -p "model_path:=${model_path}"
@@ -315,6 +322,7 @@ ros2 run yolo_detector yolo_detector_node "${run_args[@]}" \
 detector_pid=$!
 printf '%s\n' "${detector_pid}" > "${pid_file}"
 
+# 只有交互终端才读取快捷键，拍照和录像通过节点提供的 ROS 服务执行。
 if [[ -t 0 ]]; then
     recording_enabled="${RECORD_ON_START}"
     printf '\nControls: P=photo, R=start/stop recording, Q=quit\n'

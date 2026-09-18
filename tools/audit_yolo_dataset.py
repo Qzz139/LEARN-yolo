@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 训练前数据检查：核对类别、图像与标注配对、边界框范围及跨集合重复图片。
 """Audit a YOLO detection dataset before starting an expensive training run."""
 
 from __future__ import annotations
@@ -43,6 +44,7 @@ def class_names(config: dict[str, Any]) -> list[str]:
             ids = sorted(int(key) for key in raw_names)
         except (TypeError, ValueError) as exc:
             raise ValueError("class IDs in names must be integers") from exc
+        # 类别编号必须从零连续递增，才能与 YOLO 输出的类别索引一致。
         if ids != list(range(len(ids))):
             raise ValueError("class IDs in names must be contiguous and start at zero")
         names = [str(raw_names.get(index, raw_names.get(str(index)))).strip() for index in ids]
@@ -62,6 +64,7 @@ def resolve_split(config_path: Path, config: dict[str, Any], key: str) -> Path:
     value = config.get(key)
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"split {key!r} must be a non-empty path string")
+    # 相对路径先基于配置文件目录，再叠加可选的 path 数据根目录。
     root_value = config.get("path")
     root = config_path.parent
     if isinstance(root_value, str) and root_value.strip():
@@ -79,6 +82,7 @@ def label_path_for(image_path: Path, image_root: Path, label_root: Path) -> Path
 def file_digest(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
+        # 分块计算文件内容哈希，避免一次性把大图片全部读入内存。
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
@@ -127,6 +131,7 @@ def main() -> int:
             if path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES
         )
         label_files = sorted(label_root.rglob("*.txt"))
+        # 保留 images 下的相对目录结构，在 labels 中匹配同名文本标注。
         expected_labels = {
             label_path_for(image_path, image_root, label_root) for image_path in images
         }
@@ -164,6 +169,7 @@ def main() -> int:
                 errors.append(f"{split_name}: unreadable label {label_path.name}: {exc}")
                 continue
             lines = [line.strip() for line in lines if line.strip()]
+            # 空标注计作背景图片，不把它当作缺失标注。
             if not lines:
                 empty_labels += 1
                 continue
@@ -187,6 +193,7 @@ def main() -> int:
                 if not all(math.isfinite(value) for value in coordinates):
                     errors.append(f"{split_name}: {location} contains a non-finite coordinate")
                     continue
+                # YOLO 标签采用归一化中心坐标和宽高；越界框另记警告。
                 x_center, y_center, width, height = coordinates
                 if not (0.0 <= x_center <= 1.0 and 0.0 <= y_center <= 1.0):
                     errors.append(f"{split_name}: {location} has a center outside [0, 1]")
@@ -204,6 +211,7 @@ def main() -> int:
                 class_boxes[class_id] += 1
                 image_classes.add(class_id)
                 split_boxes += 1
+            # 按图片统计类别出现次数，同一张图中的多个同类目标只计一次。
             for class_id in image_classes:
                 class_images[class_id] += 1
 
@@ -217,6 +225,7 @@ def main() -> int:
             (split_name, len(images), len(label_files), split_boxes, empty_labels)
         )
 
+    # 同一文件内容跨训练、验证或测试集合出现会造成数据泄漏，作为阻断错误。
     for duplicate_paths in digests.values():
         duplicate_splits = {split for split, _ in duplicate_paths}
         if len(duplicate_splits) > 1:

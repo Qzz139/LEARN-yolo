@@ -1,4 +1,5 @@
 #!/usr/bin/env sh
+# 查找可用的 Python 环境并启动预览，支持从任意工作目录调用。
 
 set -u
 
@@ -6,6 +7,7 @@ PREVIEW_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 PROJECT_DIR=$(CDPATH= cd -- "$PREVIEW_DIR/../.." && pwd)
 PREVIEW_PYTHON=""
 
+# 按应用虚拟环境、仓库虚拟环境、系统 Python 的顺序选择，并实际检查依赖。
 for candidate in \
   "$PREVIEW_DIR/.venv/bin/python" \
   "$PROJECT_DIR/.venv/bin/python" \
@@ -29,4 +31,5 @@ if [ -z "$PREVIEW_PYTHON" ]; then
   exit 1
 fi
 
+# 以 Python 替换当前进程，透传参数、退出码和终端信号。
 exec "$PREVIEW_PYTHON" "$PREVIEW_DIR/launcher.py" "$@"

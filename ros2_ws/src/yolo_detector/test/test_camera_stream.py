@@ -1,3 +1,4 @@
+# 相机重连测试：用假设备和可控时钟验证断连阈值、等待间隔及后端选择。
 """Unit tests for USB camera reconnect behavior."""
 
 from __future__ import annotations
@@ -95,6 +96,7 @@ class RecoveringCameraTests(unittest.TestCase):
         self.assertIsNone(camera.read())
         self.assertTrue(lost.released)
 
+        # 手动推进时钟模拟等待，避免测试依赖真实时间或 USB 设备。
         clock.value += 1.0
         self.assertIsNone(camera.read())
         self.assertEqual(len(cv2.calls), 1)

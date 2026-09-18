@@ -1,3 +1,4 @@
+# 消息适配层：转换图像编码，并兼容 Foxy 与新版 vision_msgs 的字段布局。
 """ROS image and detection message compatibility helpers."""
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithP
 def image_message_to_bgr(bridge: Any, image_message: Image) -> Any:
     """Convert common ROS image encodings without OpenCV 4/5 ABI mixing."""
 
+    # 让 cv_bridge 只搬运像素，再由当前 cv2 转色，避开混用 OpenCV ABI 的转色路径。
     frame = bridge.imgmsg_to_cv2(image_message, desired_encoding="passthrough")
     encoding = image_message.encoding.lower()
 
@@ -59,6 +61,7 @@ def build_detections_message(
     if boxes is None or len(boxes) == 0:
         return output
 
+    # 将张量脱离计算图并移到 CPU，转成 ROS 消息可接受的 Python 数值。
     coordinates = boxes.xyxy.detach().cpu().tolist()
     confidences = boxes.conf.detach().cpu().tolist()
     class_ids = boxes.cls.detach().cpu().tolist()
@@ -72,6 +75,7 @@ def build_detections_message(
 
         detection = Detection2D()
         detection.header = header
+        # 模型输出为两角坐标，ROS BoundingBox2D 使用中心坐标与宽高。
         _set_bbox(
             detection,
             center_x=(x_min + x_max) / 2.0,
@@ -104,6 +108,7 @@ def _set_bbox(
     """Fill BoundingBox2D on both ROS 2 Foxy and newer schemas."""
 
     center = detection.bbox.center
+    # 按字段能力兼容消息版本，不依赖 ROS 发行版名称。
     if hasattr(center, "position"):
         center.position.x = center_x
         center.position.y = center_y

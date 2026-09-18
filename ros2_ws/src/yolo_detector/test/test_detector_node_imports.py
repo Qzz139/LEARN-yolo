@@ -1,3 +1,4 @@
+# 节点导入回归测试：替换 ROS 依赖，检查检测数组消息类型是否正确导入。
 """Import-level regression tests for the ROS detector node."""
 
 from __future__ import annotations
@@ -65,6 +66,7 @@ class DetectorNodeImportTests(unittest.TestCase):
 
         module_name = "yolo_detector.detector_node"
         ros_messages_name = "yolo_detector.ros_messages"
+        # 清除模块缓存以触发真实导入流程，结束时也移除使用替身的模块。
         sys.modules.pop(module_name, None)
         sys.modules.pop(ros_messages_name, None)
         try:

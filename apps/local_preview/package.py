@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 原生桌面打包：构建可执行目录、收集模型、执行冒烟检查并生成发布压缩包。
 """Build a native one-folder desktop package on the current operating system."""
 
 from __future__ import annotations
@@ -56,6 +57,7 @@ def _build_bundle() -> Path:
     dist_root = BUILD_ROOT / "dist"
     work_root = BUILD_ROOT / "work"
     spec_root = BUILD_ROOT / "spec"
+    # 用当前 Python 调用 PyInstaller，生成包含运行依赖的单目录程序。
     command = [
         sys.executable,
         "-m",
@@ -84,6 +86,7 @@ def _build_bundle() -> Path:
 
 
 def _copy_runtime_files(bundle: Path, release_dir: Path) -> None:
+    # 替换旧包前限制目标父目录，防止清理到发布目录之外。
     if release_dir.parent.resolve() != RELEASE_ROOT.resolve():
         raise RuntimeError(f"Refusing to replace unexpected path: {release_dir}")
     if release_dir.exists():
@@ -98,6 +101,7 @@ def _copy_runtime_files(bundle: Path, release_dir: Path) -> None:
             raise RuntimeError(
                 f"Model is still a Git LFS pointer: {model_path}. Run git lfs pull."
             )
+        # 保留模型相对清单的位置，使打包后 manifest.json 中的路径仍有效。
         relative_path = model_path.relative_to(manifest.parent)
         destination = release_dir / "weights" / relative_path
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -123,6 +127,7 @@ def _smoke_test(release_dir: Path) -> None:
         if platform.system() == "Windows"
         else APPLICATION_NAME
     )
+    # 通过实际启动打包产物检查模型目录读取能力，再用样例图检查推理。
     subprocess.run([str(executable), "--list-models"], check=True)
     sample_image = PROJECT_ROOT / "bus.jpg"
     if sample_image.is_file():

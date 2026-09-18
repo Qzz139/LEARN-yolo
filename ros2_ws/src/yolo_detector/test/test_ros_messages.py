@@ -1,3 +1,4 @@
+# 消息兼容性测试：模拟 ROS 消息和张量，核对边界框、类别名及图像编码。
 """Compatibility tests for ROS detection message construction."""
 
 from __future__ import annotations
@@ -54,6 +55,7 @@ class FoxyHypothesis:
         self.score = 0.0
 
 
+# 向模块表安装最小 ROS 替身，使消息转换测试不依赖完整 ROS 环境。
 def install_fake_ros_messages():
     sensor_msg = types.ModuleType("sensor_msgs.msg")
     sensor_msg.Image = FakeImage
@@ -147,6 +149,7 @@ class RosMessageTests(unittest.TestCase):
         self.assertAlmostEqual(detection.results[0].score, 0.8)
 
     def test_newer_hypothesis_schema_is_preserved(self):
+        # 临时换用新版字段布局，finally 恢复原类型，防止影响后续用例。
         original = ros_messages.ObjectHypothesisWithPose
 
         class ModernHypothesis:

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# 安装当前用户的应用菜单入口，并在可用时复制快捷方式到桌面。
 set -Eeuo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,6 +23,7 @@ printf '%s\n' \
     > "${application_file}"
 chmod +x "${application_file}"
 
+# 通过 XDG 查询实际桌面目录，兼容非英文桌面名称。
 desktop_dir=""
 if command -v xdg-user-dir >/dev/null 2>&1; then
     desktop_dir="$(xdg-user-dir DESKTOP 2>/dev/null || true)"

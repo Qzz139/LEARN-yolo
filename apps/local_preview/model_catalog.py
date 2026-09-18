@@ -1,3 +1,4 @@
+# 模型目录解析：统一源码运行和打包运行时的路径、类别与模型选择规则。
 """Resolve versioned detector models for source and packaged executions."""
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ class ModelSelection:
 def runtime_root() -> Path:
     """Return the project root in source mode or package root when frozen."""
 
+    # 冻结程序以可执行文件所在目录为根；源码运行则回溯到仓库根目录。
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parents[2]
@@ -71,6 +73,7 @@ def _labels_from_manifest(
 ) -> Tuple[str, ...]:
     """Resolve model-specific labels, falling back to legacy global labels."""
 
+    # 优先使用单个模型的类别表，兼容旧版清单中的全局类别表。
     raw_labels = model.get("classes") if model and "classes" in model else None
     raw_labels = raw_labels if raw_labels is not None else data.get("classes", DEFAULT_LABELS)
     if not isinstance(raw_labels, list) or not raw_labels:
@@ -83,6 +86,7 @@ def _labels_from_manifest(
 
 def _resolve_artifact(manifest_path: Path, artifact: str) -> Path:
     artifact_path = Path(artifact).expanduser()
+    # 清单中的相对模型路径以清单所在目录为基准，与启动工作目录无关。
     if not artifact_path.is_absolute():
         artifact_path = manifest_path.parent / artifact_path
     return artifact_path.resolve()
@@ -96,6 +100,7 @@ def resolve_model(
 ) -> ModelSelection:
     """Resolve CLI, environment, then active-manifest model selection."""
 
+    # 选择优先级：显式路径、环境路径、显式模型 ID、环境 ID、清单默认 ID。
     environment_model = os.environ.get(MODEL_ENV, "").strip()
     requested_path = explicit_model
     if requested_path is None and environment_model:
@@ -106,6 +111,7 @@ def resolve_model(
         labels = _labels_from_manifest(data)
         default_input_size = int(data.get("input_size", 640))
     except ModelCatalogError:
+        # 指定独立模型路径时，即使清单不可用，也允许采用默认标签继续解析。
         if requested_path is None:
             raise
         labels = DEFAULT_LABELS
@@ -146,6 +152,7 @@ def resolve_model(
         )
     labels = _labels_from_manifest(data, entry)
 
+    # 只有具有 ONNX 产物的条目才能用于桌面预览，计划训练的条目会明确报错。
     artifacts = entry.get("artifacts", {})
     artifact = artifacts.get("onnx") if isinstance(artifacts, dict) else None
     if not isinstance(artifact, str) or not artifact.strip():

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 训练入口：集中定义桌面物体数据集的训练参数，并支持从 last.pt 断点续训。
 """Reproducibly train YOLO26m on the project's current tabletop dataset."""
 
 from __future__ import annotations
@@ -52,6 +53,7 @@ def main() -> None:
     data_path = existing_file(args.data, "Dataset configuration")
     project_path = PROJECT_ROOT / "runs/train"
 
+    # 断点续训使用检查点保存的训练状态，不重新拼装下方的新训练参数。
     if args.resume:
         checkpoint = existing_file(args.resume, "Resume checkpoint")
         YOLO(str(checkpoint), task="detect").train(resume=True)
@@ -59,6 +61,7 @@ def main() -> None:
 
     model_path = existing_file(args.model, "Pretrained model")
     model = YOLO(str(model_path), task="detect")
+    # 新训练保存到 runs/train；固定随机种子并启用确定性模式以提高可复现性。
     result = model.train(
         data=str(data_path),
         epochs=args.epochs,

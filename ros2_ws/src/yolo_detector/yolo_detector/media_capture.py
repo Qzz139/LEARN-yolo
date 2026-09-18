@@ -1,3 +1,4 @@
+# 媒体保存组件：缓存最新标注帧，按请求拍照或开启、停止录像。
 """Save annotated snapshots and recordings without depending on ROS."""
 
 from __future__ import annotations
@@ -48,9 +49,11 @@ class MediaCapture:
     def process_frame(self, annotated_frame: Any) -> Optional[Path]:
         """Remember a frame and write it when recording is armed."""
 
+        # 保存帧副本，避免外部后续修改图像影响快照内容。
         self._latest_frame = annotated_frame.copy()
         if not self.recording_requested:
             return None
+        # 首帧到达后再确定视频尺寸，将“请求录制”和“已创建写入器”分开。
         if self._writer is None:
             self._open_writer(annotated_frame)
         self._writer.write(annotated_frame)
@@ -67,6 +70,7 @@ class MediaCapture:
         return path
 
     def stop_recording(self) -> Optional[Path]:
+        # 关闭前保留路径供调用方报告；release 会完成视频文件写入。
         path = self._recording_path
         if self._writer is not None:
             self._writer.release()

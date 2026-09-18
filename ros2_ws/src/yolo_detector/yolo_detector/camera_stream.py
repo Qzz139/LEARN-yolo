@@ -1,3 +1,4 @@
+# 相机恢复组件：累计读取失败后关闭设备，并按时间间隔尝试重连。
 """Recover an OpenCV camera stream after USB disconnects."""
 
 from __future__ import annotations
@@ -32,6 +33,7 @@ class RecoveringCamera:
             )
 
         self.source_text = source_text.strip()
+        # 纯数字输入作为相机索引，设备路径或 GStreamer 管道保留为字符串。
         self.source: Any = (
             int(self.source_text)
             if self.source_text.lstrip("-").isdigit()
@@ -65,6 +67,7 @@ class RecoveringCamera:
             self._read_failures = 0
             return frame
 
+        # 容忍短暂丢帧，只有连续失败达到阈值才释放设备并进入重连状态。
         self._read_failures += 1
         if self._read_failures >= self.read_failure_threshold:
             self._logger.warning(
@@ -88,6 +91,7 @@ class RecoveringCamera:
         return self._cv2.VideoCapture(self.source)
 
     def _connect(self, initial: bool = False) -> bool:
+        # 采用可注入的单调时钟控制重试频率，测试时可推进时间而无需真实等待。
         attempted_at = self._clock()
         if (
             not initial

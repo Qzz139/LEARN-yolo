@@ -1,6 +1,8 @@
+# 桌面发布流水线：在各目标系统原生打包，验证后上传压缩包供下载。
 name: Build desktop packages
 
 on:
+  # 支持手动触发；推送 desktop-v 开头的标签也会启动构建。
   workflow_dispatch:
   push:
     tags:
@@ -28,6 +30,7 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v6
 
+      # 只拉取桌面所需 ONNX 权重，避免下载训练集及其他大型 LFS 资源。
       - name: Download desktop ONNX models from Git LFS
         shell: bash
         run: |
@@ -47,6 +50,7 @@ jobs:
       - name: Run unit tests
         run: python -m unittest discover -s apps/local_preview/tests -v
 
+      # 打包脚本默认运行产物冒烟检查，确认模型清单和样例图片推理可执行。
       - name: Build and smoke-test native package
         run: python apps/local_preview/package.py
 

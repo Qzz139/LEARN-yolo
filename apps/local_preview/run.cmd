@@ -1,4 +1,5 @@
 @echo off
+REM Launch preview using the application venv, project venv, or system Python.
 setlocal
 
 set "PREVIEW_DIR=%~dp0"
@@ -21,6 +22,7 @@ if not defined PREVIEW_PYTHON (
   exit /b 1
 )
 
+REM Check dependencies before forwarding all arguments to the launcher.
 "%PREVIEW_PYTHON%" -c "import cv2, numpy" >nul 2>nul
 if errorlevel 1 (
   echo Python was found, but OpenCV and NumPy are missing:

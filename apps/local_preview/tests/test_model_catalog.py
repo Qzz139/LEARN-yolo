@@ -1,3 +1,4 @@
+# 模型清单回归测试：覆盖默认模型、类别覆盖、缺失产物和显式路径优先级。
 from __future__ import annotations
 
 import json
@@ -18,6 +19,7 @@ class ModelCatalogTests(unittest.TestCase):
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)
         self.model_path = self.root / "active.onnx"
+        # 这里只验证路径解析，因此使用占位内容，不加载真实 ONNX 模型。
         self.model_path.write_bytes(b"model")
         self.manifest_path = self.root / "manifest.json"
         self.manifest_path.write_text(

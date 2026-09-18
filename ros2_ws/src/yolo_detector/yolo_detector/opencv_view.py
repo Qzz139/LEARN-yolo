@@ -1,3 +1,4 @@
+# 窗口组件：延迟创建 OpenCV 窗口，并把按键或关闭按钮转换为退出信号。
 """Lifecycle-safe OpenCV display for the detector node."""
 
 from __future__ import annotations
@@ -38,6 +39,7 @@ class OpenCvViewer:
                 self._opened = True
 
             self._cv2.imshow(self._window_name, frame)
+            # 短暂处理 GUI 事件，既刷新窗口也读取按键，避免阻塞节点。
             key = self._cv2.waitKey(1) & 0xFF
             if key in (ord("q"), ord("Q"), 27):
                 self.close()
@@ -59,6 +61,7 @@ class OpenCvViewer:
 
     def close(self) -> None:
         """Close the window and disable future display calls."""
+        # 关闭后禁止后续帧重建窗口，重复清理也不会再次销毁同一窗口。
         self._enabled = False
         if not self._opened:
             return

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 跨平台启动入口：解析模型目录选项，再将推理参数交给 main.py。
 """Cross-platform entry point with manifest-based model selection."""
 
 from __future__ import annotations
@@ -48,6 +49,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         _print_help()
         return 0
 
+    # 只消费启动器认识的参数，保留摄像头、显示和保存等参数给预览程序。
     launcher_args, preview_args = _launcher_parser().parse_known_args(original_args)
     if launcher_args.list_models:
         print("Registered models (* = active):")
@@ -60,6 +62,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         explicit_model=launcher_args.model,
         explicit_model_id=launcher_args.model_id,
     )
+    # 命令行类别覆盖模型清单中的标签，顺序必须与模型输出的类别编号对应。
     labels = launcher_args.labels or ",".join(selection.labels)
     forwarded_args = [
         *preview_args,
@@ -68,6 +71,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "--labels",
         labels,
     ]
+    # 打包后的程序默认写入用户目录，避免在安装目录下创建输出文件。
     if getattr(sys, "frozen", False) and "--output-dir" not in preview_args:
         forwarded_args.extend(
             ["--output-dir", str(Path.home() / "YOLOPreview" / "outputs")]

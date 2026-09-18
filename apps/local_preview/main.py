@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 桌面推理主程序：完成 ONNX 推理、检测框绘制、图片批处理和摄像头交互。
 """Preview the trained YOLO model locally with OpenCV DNN.
 
 The exported ONNX model already includes post-processing and returns rows in
@@ -95,6 +96,7 @@ def _letterbox(
     if height <= 0 or width <= 0:
         raise PreviewError("Input frame has an invalid size.")
 
+    # 取宽、高缩放比例的较小值，使长边贴合输入尺寸；比例和填充量用于还原检测框。
     scale = min(size / width, size / height)
     resized_width = max(1, int(round(width * scale)))
     resized_height = max(1, int(round(height * scale)))
@@ -104,6 +106,7 @@ def _letterbox(
 
     pad_x = (size - resized_width) // 2
     pad_y = (size - resized_height) // 2
+    # 使用 114 灰度填充空白区域，与 YOLO 常用的 letterbox 预处理一致。
     canvas = np.full((size, size, 3), 114, dtype=np.uint8)
     canvas[
         pad_y : pad_y + resized_height,
@@ -146,6 +149,7 @@ class OnnxDetector:
 
     def predict(self, frame: "np.ndarray") -> InferenceResult:
         model_input, scale, pad_x, pad_y = _letterbox(frame, self.input_size)
+        # 将 BGR 图像转换为 RGB，并将像素归一化到 [0, 1]，生成网络输入张量。
         blob = cv2.dnn.blobFromImage(
             model_input,
             scalefactor=1.0 / 255.0,
@@ -156,10 +160,12 @@ class OnnxDetector:
         )
 
         self.net.setInput(blob)
+        # 这里只统计网络前向计算耗时，不包含预处理、绘图和显示。
         started = time.perf_counter()
         raw_output = self.net.forward()
         inference_ms = (time.perf_counter() - started) * 1000.0
 
+        # 此解析器要求端到端导出的坐标、置信度和类别行，不能直接解析原始检测头输出。
         rows = np.asarray(raw_output).reshape(-1, raw_output.shape[-1])
         if rows.shape[1] < 6:
             raise PreviewError(
@@ -181,10 +187,12 @@ class OnnxDetector:
                 else f"class_{class_id}"
             )
 
+            # 先减去 letterbox 填充，再除以缩放比例，将坐标映射回原始画面。
             x1 = int(round((float(row[0]) - pad_x) / scale))
             y1 = int(round((float(row[1]) - pad_y) / scale))
             x2 = int(round((float(row[2]) - pad_x) / scale))
             y2 = int(round((float(row[3]) - pad_y) / scale))
+            # 裁剪到有效像素范围；后续丢弃裁剪后宽或高为零的框。
             x1 = min(max(x1, 0), max(width - 1, 0))
             y1 = min(max(y1, 0), max(height - 1, 0))
             x2 = min(max(x2, 0), max(width - 1, 0))
@@ -223,6 +231,7 @@ def _class_aware_nms(
     """Suppress duplicate boxes while never mixing different classes."""
 
     kept: List[Detection] = []
+    # 优先保留高置信度框，只抑制同类别且 IoU 超过阈值的候选框。
     for candidate in sorted(
         detections, key=lambda item: item.confidence, reverse=True
     ):
@@ -277,6 +286,7 @@ def annotate(
 ) -> "np.ndarray":
     """Draw detections and a compact status panel."""
 
+    # 在副本上绘制，保留原始帧供拍照或其他处理使用。
     output = frame.copy()
     height, width = output.shape[:2]
     scale = max(0.45, min(width, height) / 900.0)
@@ -509,6 +519,7 @@ def run_image_directory(
         for path in source.iterdir()
         if path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES
     )
+    # 批处理跳过尚未下载的 LFS 占位文件，避免把指针文本当作图片解码。
     real_images = [path for path in candidates if not _is_git_lfs_pointer(path)]
     if not real_images:
         raise PreviewError(
@@ -571,6 +582,7 @@ def run_stream(
         capture.set(cv2.CAP_PROP_FRAME_WIDTH, camera_width)
         capture.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
 
+    # 录制优先采用输入帧率；设备未提供有效值时，在首帧处理后估算。
     input_fps = capture.get(cv2.CAP_PROP_FPS)
     writer = None
     output_path = _video_output_path(
@@ -618,6 +630,7 @@ def run_stream(
                 frame_index += 1
 
                 if save:
+                    # 收到首帧后才创建视频写入器，以实际输出尺寸确定编码参数。
                     if writer is None:
                         output_dir.mkdir(parents=True, exist_ok=True)
                         height, width = last_rendered.shape[:2]
@@ -649,6 +662,7 @@ def run_stream(
             if not show:
                 continue
             if last_rendered is not None:
+                # 按键提示和拍照通知只叠加到显示副本，避免写入保存的照片或视频。
                 display_frame = last_rendered.copy()
                 _draw_stream_help(display_frame)
                 if time.monotonic() < photo_notice_until:
@@ -682,6 +696,7 @@ def run_stream(
                 print(f"  Original: {original_path}")
                 print(f"  Detected: {detected_path}")
     finally:
+        # 正常退出、用户中断或处理异常时，都释放摄像头和视频文件句柄。
         capture.release()
         if writer is not None:
             writer.release()
@@ -777,6 +792,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.max_frames is not None and args.max_frames <= 0:
         raise PreviewError("--max-frames must be positive.")
 
+    # 将数字解析为相机编号，其余输入解析为路径，再按目录或扩展名分流。
     source = _parse_source(args.source)
     model_path = args.model.expanduser().resolve()
     output_dir = args.output_dir.expanduser().resolve()
